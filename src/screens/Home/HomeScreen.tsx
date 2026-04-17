@@ -49,19 +49,22 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         <Text style={styles.subtitle}>Resumen de Préstamos</Text>
       </View>
 
-      <View style={styles.statsContainer}>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{loans.length}</Text>
-          <Text style={styles.statLabel}>Total Préstamos</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{activeLoans.length}</Text>
-          <Text style={styles.statLabel}>Préstamos Activos</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>${totalAmount.toLocaleString()}</Text>
-          <Text style={styles.statLabel}>Monto Total</Text>
-        </View>
+      <View style={styles.quickActions}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => navigation.navigate('LoanForm')}
+        >
+          <Text style={styles.actionIcon}>➕</Text>
+          <Text style={styles.actionText}>Nuevo Préstamo</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => navigation.navigate('Reports')}
+        >
+          <Text style={styles.actionIcon}>📊</Text>
+          <Text style={styles.actionText}>Reportes</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.recentLoans}>
@@ -105,6 +108,33 @@ const styles = StyleSheet.create({
   statsContainer: {
     flexDirection: 'row',
     padding: 20,
+  },
+  quickActions: {
+    flexDirection: 'row',
+    padding: 20,
+    paddingTop: 0,
+  },
+  actionButton: {
+    flex: 1,
+    backgroundColor: 'white',
+    padding: 16,
+    marginHorizontal: 4,
+    borderRadius: 8,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  actionIcon: {
+    fontSize: 24,
+    marginBottom: 8,
+  },
+  actionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.primary,
   },
   statCard: {
     flex: 1,

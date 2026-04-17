@@ -19,9 +19,26 @@ interface ProfileScreenProps {
 }
 
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
-  const handleLogout = () => {
-    // Mock logout - replace with actual logout logic
-    navigation.replace('Login');
+  const handleLogout = async () => {
+    Alert.alert(
+      'Cerrar Sesión',
+      '¿Estás seguro de que quieres cerrar sesión?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Cerrar Sesión',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await AuthService.logout();
+              navigation.replace('Login');
+            } catch (error) {
+              console.error('Error logging out:', error);
+            }
+          }
+        }
+      ]
+    );
   };
 
   return (
@@ -49,6 +66,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
         <TouchableOpacity style={styles.menuItem}>
           <Text style={styles.menuText}>Configuraciones</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.menuItem}
+          onPress={() => navigation.navigate('Reports')}
+        >
+          <Text style={styles.menuText}>Reportes</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={[styles.menuItem, styles.logout]} onPress={handleLogout}>

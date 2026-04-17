@@ -70,6 +70,13 @@ export const LoansScreen: React.FC<LoansScreenProps> = ({ navigation }) => {
           </View>
         }
       />
+
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => navigation.navigate('LoanForm')}
+      >
+        <Text style={styles.fabIcon}>+</Text>
+      </TouchableOpacity>
     </View>
   );
 };
@@ -106,5 +113,26 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     opacity: 0.7,
     textAlign: 'center',
+  },
+  fab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  fabIcon: {
+    fontSize: 30,
+    color: 'white',
+    fontWeight: 'bold',
   },
 });

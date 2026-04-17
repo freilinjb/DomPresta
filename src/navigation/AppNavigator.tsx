@@ -6,6 +6,9 @@ import { LoginScreen } from '../screens/Auth/LoginScreen';
 import { HomeScreen } from '../screens/Home/HomeScreen';
 import { LoansScreen } from '../screens/Loans/LoansScreen';
 import { LoanDetailsScreen } from '../screens/Loans/LoanDetailsScreen';
+import { LoanFormScreen } from '../screens/Forms/LoanFormScreen';
+import { PaymentFormScreen } from '../screens/Forms/PaymentFormScreen';
+import { ReportsScreen } from '../screens/Reports/ReportsScreen';
 import { ProfileScreen } from '../screens/Profile/ProfileScreen';
 import { SettingsScreen } from '../screens/Settings/SettingsScreen';
 import { COLORS } from '../constants';
@@ -91,6 +94,23 @@ const AppNavigator = () => {
           name="LoanDetails"
           component={LoanDetailsScreen}
           options={{ title: 'Detalles del Préstamo' }}
+        />
+        <Stack.Screen
+          name="LoanForm"
+          component={LoanFormScreen}
+          options={({ route }) => ({
+            title: route.params?.loanId ? 'Editar Préstamo' : 'Nuevo Préstamo'
+          })}
+        />
+        <Stack.Screen
+          name="PaymentForm"
+          component={PaymentFormScreen}
+          options={{ title: 'Registrar Pago' }}
+        />
+        <Stack.Screen
+          name="Reports"
+          component={ReportsScreen}
+          options={{ title: 'Reportes' }}
         />
       </Stack.Navigator>
     </NavigationContainer>

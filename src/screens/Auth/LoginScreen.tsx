@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, StyleSheet, Alert } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { AuthService } from '../../services/authService';
+import { NotificationService } from '../../services/notificationService';
 import { Button } from '../../components/common/Button';
 import { COLORS } from '../../constants';
 import { RootStackParamList } from '../../navigation/types';
@@ -14,13 +16,39 @@ interface LoginScreenProps {
 export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
-    if (email && password) {
-      // Mock login - replace with actual authentication
-      navigation.replace('MainTabs');
-    } else {
+  useEffect(() => {
+    initializeApp();
+  }, []);
+
+  const initializeApp = async () => {
+    try {
+      await AuthService.initialize();
+      await NotificationService.initialize();
+    } catch (error) {
+      console.error('Error initializing app:', error);
+    }
+  };
+
+  const handleLogin = async () => {
+    if (!email.trim() || !password.trim()) {
       Alert.alert('Error', 'Por favor ingrese email y contraseña');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const user = await AuthService.login(email.trim(), password);
+      if (user) {
+        navigation.replace('MainTabs');
+      } else {
+        Alert.alert('Error', 'Credenciales incorrectas');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Error al iniciar sesión');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -37,6 +65,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
           onChangeText={setEmail}
           keyboardType="email-address"
           autoCapitalize="none"
+          editable={!loading}
         />
         <TextInput
           style={styles.input}
@@ -44,9 +73,19 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
           value={password}
           onChangeText={setPassword}
           secureTextEntry
+          editable={!loading}
         />
 
-        <Button title="Iniciar Sesión" onPress={handleLogin} />
+        <Button
+          title={loading ? "Iniciando..." : "Iniciar Sesión"}
+          onPress={handleLogin}
+          disabled={loading}
+        />
+
+        <Text style={styles.hint}>
+          Usuario por defecto: admin@dompresta.com{'\n'}
+          Contraseña: admin123
+        </Text>
       </View>
     </View>
   );

@@ -90,21 +90,20 @@ export const LoanDetailsScreen: React.FC<LoanDetailsScreenProps> = ({ route, nav
         </View>
       </View>
 
-      <View style={styles.paymentsContainer}>
-        <Text style={styles.sectionTitle}>Pagos</Text>
-        {loan.payments.length > 0 ? (
-          loan.payments.map(payment => (
-            <View key={payment.id} style={styles.paymentItem}>
-              <Text style={styles.paymentDate}>{payment.date.toLocaleDateString()}</Text>
-              <Text style={styles.paymentAmount}>${payment.amount.toLocaleString()}</Text>
-              <Text style={[styles.paymentStatus, { color: payment.status === 'paid' ? COLORS.success : COLORS.danger }]}>
-                {payment.status === 'paid' ? 'Pagado' : 'Pendiente'}
-              </Text>
-            </View>
-          ))
-        ) : (
-          <Text style={styles.noPayments}>No hay pagos registrados</Text>
-        )}
+      <View style={styles.actionsContainer}>
+        <TouchableOpacity
+          style={[styles.actionButton, styles.editButton]}
+          onPress={() => navigation.navigate('LoanForm', { loanId })}
+        >
+          <Text style={styles.actionButtonText}>Editar Préstamo</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.actionButton, styles.paymentButton]}
+          onPress={() => navigation.navigate('PaymentForm', { loanId })}
+        >
+          <Text style={styles.actionButtonText}>Registrar Pago</Text>
+        </TouchableOpacity>
       </View>
     </ScrollView>
   );
@@ -196,5 +195,27 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     opacity: 0.7,
     textAlign: 'center',
+  },
+  actionsContainer: {
+    flexDirection: 'row',
+    padding: 16,
+    gap: 12,
+  },
+  actionButton: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  editButton: {
+    backgroundColor: COLORS.primary,
+  },
+  paymentButton: {
+    backgroundColor: COLORS.success,
+  },
+  actionButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
