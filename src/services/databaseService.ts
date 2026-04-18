@@ -76,7 +76,7 @@ export class DatabaseService {
   }
 
   // Métodos para usuarios
-  static async createUser(user: CreateUser): Promise<User> {
+  static async createUser(user: { name: string; email: string; password: string; role: 'admin' | 'user' }): Promise<User> {
     return new Promise((resolve, reject) => {
       const id = Date.now().toString();
       db.transaction(tx => {
