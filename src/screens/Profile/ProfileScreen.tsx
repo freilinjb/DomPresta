@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { COLORS } from '../../constants';
+import { AuthService } from '../../services/authService';
 import { MainTabParamList, RootStackParamList } from '../../navigation/types';
 
 type ProfileScreenTabProp = BottomTabNavigationProp<MainTabParamList, 'Profile'>;

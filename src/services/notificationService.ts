@@ -8,6 +8,8 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
@@ -52,7 +54,7 @@ export class NotificationService {
           body: `Pago pendiente para ${loan.borrowerName}: $${loan.amount.toLocaleString()}`,
           data: { loanId: loan.id, type: 'payment_reminder' },
         },
-        trigger: reminderDate,
+        trigger: { type: 'date', date: reminderDate },
       });
 
       // Guardar el ID de la notificación en la configuración
@@ -95,7 +97,7 @@ export class NotificationService {
           body: `El préstamo de ${loan.borrowerName} vence el ${loan.endDate.toLocaleDateString()}`,
           data: { loanId: loan.id, type: 'loan_due_reminder' },
         },
-        trigger: reminderDate,
+        trigger: { type: 'date', date: reminderDate },
       });
 
       await DatabaseService.setSetting(`loan_due_${loan.id}`, notificationId);
@@ -108,9 +110,13 @@ export class NotificationService {
 
   static async sendImmediateNotification(title: string, body: string, data?: any): Promise<void> {
     try {
-      await Notifications.presentNotificationAsync({
-        title,
-        body,
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title,
+          body,
+          data: data || {},
+        },
+        trigger: null,
         data: data || {},
       });
     } catch (error) {

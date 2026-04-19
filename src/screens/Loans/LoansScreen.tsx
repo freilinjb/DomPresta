@@ -1,21 +1,22 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList } from 'react-native';
-import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
-import { CompositeNavigationProp } from '@react-navigation/native';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  StyleSheet,
+  RefreshControl,
+  Alert,
+} from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { Loan } from '../../types';
+import { Ionicons } from '@expo/vector-icons';
 import { LoanService } from '../../services/loanService';
 import { LoanCard } from '../../components/loans/LoanCard';
+import { Loan } from '../../types';
 import { COLORS } from '../../constants';
-import { MainTabParamList, RootStackParamList } from '../../navigation/types';
+import { MainTabParamList } from '../../navigation/types';
 
-type LoansScreenTabProp = BottomTabNavigationProp<MainTabParamList, 'Loans'>;
-type LoansScreenStackProp = StackNavigationProp<RootStackParamList, 'MainTabs'>;
-
-type LoansScreenNavigationProp = CompositeNavigationProp<
-  LoansScreenTabProp,
-  LoansScreenStackProp
->;
+type LoansScreenNavigationProp = StackNavigationProp<MainTabParamList, 'Loans'>;
 
 interface LoansScreenProps {
   navigation: LoansScreenNavigationProp;
@@ -24,6 +25,7 @@ interface LoansScreenProps {
 export const LoansScreen: React.FC<LoansScreenProps> = ({ navigation }) => {
   const [loans, setLoans] = useState<Loan[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     loadLoans();
@@ -31,23 +33,46 @@ export const LoansScreen: React.FC<LoansScreenProps> = ({ navigation }) => {
 
   const loadLoans = async () => {
     try {
-      const loanData = await LoanService.getLoans();
-      setLoans(loanData);
+      const loansData = await LoanService.getLoans();
+      setLoans(loansData);
     } catch (error) {
       console.error('Error loading loans:', error);
+      Alert.alert('Error', 'No se pudieron cargar los préstamos');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
-  const handleLoanPress = (loan: Loan) => {
-    navigation.navigate('LoanDetails', { loanId: loan.id });
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadLoans();
   };
+
+  const handleLoanPress = (loan: Loan) => {
+    (navigation as any).navigate('LoanDetails', { loanId: loan.id });
+  };
+
+  const handleAddLoan = () => {
+    (navigation as any).navigate('LoanForm');
+  };
+
+  const renderLoan = ({ item }: { item: Loan }) => (
+    <LoanCard loan={item} onPress={() => handleLoanPress(item)} />
+  );
+
+  const renderEmpty = () => (
+    <View style={styles.emptyContainer}>
+      <Ionicons name="document-text-outline" size={64} color={COLORS.text} />
+      <Text style={styles.emptyText}>No hay préstamos registrados</Text>
+      <Text style={styles.emptySubtext}>Agrega tu primer préstamo</Text>
+    </View>
+  );
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <Text>Cargando préstamos...</Text>
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>Cargando préstamos...</Text>
       </View>
     );
   }
@@ -56,27 +81,21 @@ export const LoansScreen: React.FC<LoansScreenProps> = ({ navigation }) => {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Préstamos</Text>
+        <TouchableOpacity style={styles.addButton} onPress={handleAddLoan}>
+          <Ionicons name="add" size={24} color="white" />
+        </TouchableOpacity>
       </View>
 
       <FlatList
         data={loans}
+        renderItem={renderLoan}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <LoanCard loan={item} onPress={() => handleLoanPress(item)} />
-        )}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No hay préstamos registrados</Text>
-          </View>
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
+        ListEmptyComponent={renderEmpty}
+        contentContainerStyle={loans.length === 0 ? styles.emptyList : undefined}
       />
-
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => navigation.navigate('LoanForm')}
-      >
-        <Text style={styles.fabIcon}>+</Text>
-      </TouchableOpacity>
     </View>
   );
 };
@@ -86,53 +105,54 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   header: {
-    padding: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
     backgroundColor: 'white',
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: '#E5E5E5',
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     color: COLORS.text,
   },
+  addButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 8,
+    padding: 8,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: COLORS.text,
+  },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 40,
+    padding: 32,
   },
   emptyText: {
-    fontSize: 16,
+    fontSize: 18,
+    fontWeight: 'bold',
     color: COLORS.text,
-    opacity: 0.7,
+    marginTop: 16,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: COLORS.text,
+    marginTop: 8,
     textAlign: 'center',
   },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 20,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  fabIcon: {
-    fontSize: 30,
-    color: 'white',
-    fontWeight: 'bold',
+  emptyList: {
+    flex: 1,
   },
 });

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { Loan } from '../../types';
 import { LoanService } from '../../services/loanService';
@@ -52,7 +52,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       <View style={styles.quickActions}>
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => navigation.navigate('LoanForm')}
+          onPress={() => navigation.navigate('Loans')}
         >
           <Text style={styles.actionIcon}>➕</Text>
           <Text style={styles.actionText}>Nuevo Préstamo</Text>
@@ -60,7 +60,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => navigation.navigate('Reports')}
+          onPress={() => navigation.navigate('Settings')}
         >
           <Text style={styles.actionIcon}>📊</Text>
           <Text style={styles.actionText}>Reportes</Text>
