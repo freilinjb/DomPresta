@@ -7,7 +7,7 @@ import { LoginScreen } from '../screens/Auth/LoginScreen';
 import { HomeScreen } from '../screens/Home/HomeScreen';
 import { LoansScreen } from '../screens/Loans/LoansScreen';
 import { LoanDetailsScreen } from '../screens/Loans/LoanDetailsScreen';
-import { LoanFormScreen } from '../screens/Forms/LoanFormScreen';
+import LoanFormScreen from '../screens/Forms/LoanFormScreen';
 import { PaymentFormScreen } from '../screens/Forms/PaymentFormScreen';
 import { ClientFormScreen } from '../screens/Forms/ClientFormScreen';
 import { VendorFormScreen } from '../screens/Forms/VendorFormScreen';

@@ -36,7 +36,8 @@
     "plugins": [
       "react-native-ble-plx",
       "expo-sqlite",
-      "expo-web-browser"
+      "expo-web-browser",
+      "@react-native-community/datetimepicker"
     ]
   }
 }
