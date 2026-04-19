@@ -10,6 +10,7 @@ import {
   StatusBar,
   Animated as RNAnimated,
   Pressable,
+  FlatList,
 } from 'react-native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,10 +19,11 @@ import Animated, {
   FadeInDown,
   SlideInRight,
   Layout,
+  FadeIn,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
-import Svg, { Circle, Text as SvgText, G } from 'react-native-svg';
+import Svg, { Circle, Text as SvgText, G, Line } from 'react-native-svg';
 import { Loan } from '../../types';
 import { LoanService } from '../../services/loanService';
 import { MainTabParamList } from '../../navigation/types';
@@ -52,31 +54,49 @@ const C = {
 type HomeScreenNavigationProp = BottomTabNavigationProp<MainTabParamList, 'Home'>;
 interface HomeScreenProps { navigation: HomeScreenNavigationProp; }
 
-// ─── Mock loans ───────────────────────────────────────────────────
+// ─── Datos falsos mejorados ───────────────────────────────────────
 const MOCK_LOANS: Loan[] = [
-  { id: '1', borrowerName: 'Juan Rodríguez', amount: 5000, status: 'active', createdAt: '2025-06-01' },
-  { id: '2', borrowerName: 'María Pérez', amount: 2500, status: 'pending', createdAt: '2025-06-10' },
-  { id: '3', borrowerName: 'Carlos García', amount: 8200, status: 'overdue', createdAt: '2025-04-15' },
-  { id: '4', borrowerName: 'Ana López', amount: 3750, status: 'review', createdAt: '2025-06-15' },
-  { id: '5', borrowerName: 'Roberto Marte', amount: 6000, status: 'active', createdAt: '2025-05-20' },
-  { id: '6', borrowerName: 'Luisa Fernández', amount: 4200, status: 'active', createdAt: '2025-06-18' },
+  { id: '1', borrowerName: 'Juan Rodríguez Méndez', amount: 15750.50, status: 'active', createdAt: '2026-01-15' },
+  { id: '2', borrowerName: 'María Pérez González', amount: 8250.00, status: 'pending', createdAt: '2026-03-20' },
+  { id: '3', borrowerName: 'Carlos García López', amount: 22300.75, status: 'overdue', createdAt: '2025-11-10' },
+  { id: '4', borrowerName: 'Ana Martínez Ruiz', amount: 12500.00, status: 'review', createdAt: '2026-04-05' },
+  { id: '5', borrowerName: 'Roberto Fernández Marte', amount: 18750.25, status: 'active', createdAt: '2025-12-01' },
+  { id: '6', borrowerName: 'Luisa Hernández Díaz', amount: 14300.00, status: 'active', createdAt: '2026-02-28' },
+  { id: '7', borrowerName: 'Pedro Sánchez Vega', amount: 9200.50, status: 'pending', createdAt: '2026-04-12' },
+  { id: '8', borrowerName: 'Sofía Ramírez Castro', amount: 31200.00, status: 'overdue', createdAt: '2025-10-15' },
+];
+
+const MOCK_CLIENTS = [
+  { id: '1', name: 'Elena Torres Vega', email: 'elena.torres@email.com', phone: '809-555-0123', loans: 3, totalAmount: 42500, status: 'active' },
+  { id: '2', name: 'Miguel Ángel Cruz', email: 'miguel.cruz@email.com', phone: '809-555-0124', loans: 1, totalAmount: 15000, status: 'pending' },
+  { id: '3', name: 'Laura Jiménez Paz', email: 'laura.jimenez@email.com', phone: '809-555-0125', loans: 5, totalAmount: 78250, status: 'active' },
+  { id: '4', name: 'Ricardo Mora Silva', email: 'ricardo.mora@email.com', phone: '809-555-0126', loans: 2, totalAmount: 28900, status: 'overdue' },
+  { id: '5', name: 'Carmen Díaz Rojas', email: 'carmen.diaz@email.com', phone: '809-555-0127', loans: 4, totalAmount: 56300, status: 'active' },
+];
+
+const MOCK_REPORTS = [
+  { id: '1', title: 'Reporte de Cobranzas - Abril 2026', date: '2026-04-15', type: 'collection', amount: 89500, status: 'generated' },
+  { id: '2', title: 'Análisis de Riesgo - Q1 2026', date: '2026-04-10', type: 'risk', score: 87, status: 'generated' },
+  { id: '3', title: 'Proyección de Crecimiento 2026', date: '2026-04-05', type: 'growth', growth: 23.5, status: 'generated' },
+  { id: '4', title: 'Balance General - Marzo 2026', date: '2026-03-31', type: 'balance', amount: 1245000, status: 'generated' },
 ];
 
 const MONTHLY = [
-  { month: 'Ene', amt: 9, h: 38 },
-  { month: 'Feb', amt: 11, h: 46 },
-  { month: 'Mar', amt: 14, h: 58 },
-  { month: 'Abr', amt: 12, h: 50 },
-  { month: 'May', amt: 16, h: 66 },
-  { month: 'Jun', amt: 18, h: 76, peak: true },
-  { month: 'Jul', amt: 0, h: 30, forecast: true },
+  { month: 'Ene', amt: 12.5, h: 42 },
+  { month: 'Feb', amt: 14.2, h: 48 },
+  { month: 'Mar', amt: 16.8, h: 56 },
+  { month: 'Abr', amt: 15.3, h: 52 },
+  { month: 'May', amt: 19.5, h: 64 },
+  { month: 'Jun', amt: 22.4, h: 72, peak: true },
+  { month: 'Jul', amt: 18.7, h: 62, forecast: true },
+  { month: 'Ago', amt: 0, h: 40, forecast: true },
 ];
 
 const DONUT_SEGS = [
-  { pct: 0.70, color: '#7c3aed', label: 'Activos', count: 42 },
-  { pct: 0.15, color: '#a78bfa', label: 'Pendientes', count: 11 },
-  { pct: 0.08, color: '#f87171', label: 'Vencidos', count: 8 },
-  { pct: 0.07, color: '#34d399', label: 'Completados', count: 66 },
+  { pct: 0.62, color: '#7c3aed', label: 'Activos', count: 48 },
+  { pct: 0.18, color: '#a78bfa', label: 'Pendientes', count: 14 },
+  { pct: 0.12, color: '#f87171', label: 'Vencidos', count: 9 },
+  { pct: 0.08, color: '#34d399', label: 'Completados', count: 72 },
 ];
 
 const AVATAR_GRADIENTS: [string, string][] = [
@@ -86,6 +106,8 @@ const AVATAR_GRADIENTS: [string, string][] = [
   ['#059669', '#0891b2'],
   ['#7c3aed', '#059669'],
   ['#a78bfa', '#f59e0b'],
+  ['#ec4899', '#8b5cf6'],
+  ['#14b8a6', '#3b82f6'],
 ];
 
 const STATUS_CFG: Record<string, { label: string; fg: string; bg: string }> = {
@@ -209,7 +231,7 @@ const DonutChart: React.FC = () => {
             );
           })}
         </G>
-        <SvgText x={50} y={46} textAnchor="middle" fontSize={11} fontWeight="800" fill={C.text}>127</SvgText>
+        <SvgText x={50} y={46} textAnchor="middle" fontSize={11} fontWeight="800" fill={C.text}>143</SvgText>
         <SvgText x={50} y={57} textAnchor="middle" fontSize={8} fill={C.textMuted}>total</SvgText>
       </Svg>
       <View style={{ flex: 1, gap: 8 }}>
@@ -237,8 +259,49 @@ const LoanAvatar: React.FC<{ name: string; idx: number }> = ({ name, idx }) => {
   );
 };
 
+// ─── LineChart ────────────────────────────────────────────────────
+const LineChart: React.FC = () => {
+  const data = [120, 145, 138, 162, 178, 195, 182];
+  const max = Math.max(...data);
+  const min = Math.min(...data);
+  const range = max - min;
+  const height = 60;
+  const width = 300;
+  
+  const points = data.map((value, index) => {
+    const x = (index / (data.length - 1)) * width;
+    const y = height - ((value - min) / range) * height;
+    return `${x},${y}`;
+  }).join(' ');
+  
+  return (
+    <Svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+      <Line
+        points={points}
+        stroke={C.primary2}
+        strokeWidth={2}
+        fill="none"
+      />
+      {data.map((value, index) => {
+        const x = (index / (data.length - 1)) * width;
+        const y = height - ((value - min) / range) * height;
+        return (
+          <Circle
+            key={index}
+            cx={x}
+            cy={y}
+            r={3}
+            fill={C.primary2}
+          />
+        );
+      })}
+    </Svg>
+  );
+};
+
 // ─── HomeScreen ───────────────────────────────────────────────────
 export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
+  const [activeTab, setActiveTab] = useState<'Resumen' | 'Préstamos' | 'Clientes' | 'Reportes'>('Resumen');
   const [loans, setLoans] = useState<Loan[]>(MOCK_LOANS);
   const [refreshing, setRefreshing] = useState(false);
   const scrollY = useRef(new RNAnimated.Value(0)).current;
@@ -277,6 +340,261 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const activeLoans = loans.filter(l => l.status === 'active');
   const pendingLoans = loans.filter(l => l.status === 'pending');
   const overdueLoans = loans.filter(l => l.status === 'overdue');
+  const totalAmount = loans.reduce((sum, loan) => sum + loan.amount, 0);
+
+  // Renderizar contenido según tab activo
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'Resumen':
+        return renderResumenContent();
+      case 'Préstamos':
+        return renderPrestamosContent();
+      case 'Clientes':
+        return renderClientesContent();
+      case 'Reportes':
+        return renderReportesContent();
+      default:
+        return null;
+    }
+  };
+
+  const renderResumenContent = () => (
+    <>
+      {/* ── MÉTRICAS ─────────────────────────────── */}
+      <View style={s.row}>
+        <MetricCard icon="💰" label="Cobrado este mes" value="$22,450" trend="▲ 15.2% vs mes ant." up delay={280} />
+        <View style={{ width: 10 }} />
+        <MetricCard icon="⚠️" label="Por vencer (7 días)" value="$11,280" trend="▼ 12 préstamos" delay={320} />
+      </View>
+      <View style={{ height: 10 }} />
+      <View style={s.row}>
+        <MetricCard icon="📈" label="Tasa de cobro" value="96.8%" trend="▲ Excelente" up delay={360} />
+        <View style={{ width: 10 }} />
+        <MetricCard icon="🏦" label="Capital disponible" value="$38,500" trend="→ Listo para prestar" neu delay={400} />
+      </View>
+
+      {/* ── PIPELINE ─────────────────────────────── */}
+      <Text style={s.sectionTitle}>Proceso de préstamos</Text>
+      <Animated.View entering={FadeInDown.delay(440).springify()} style={s.card}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <PipeStep label="Solicitud" count="42" state="done" />
+          <View style={{ flex: 0.3, height: 2, backgroundColor: C.primary4, marginTop: -18 }} />
+          <PipeStep label="Evaluación" count="35" state="done" />
+          <View style={{ flex: 0.3, height: 2, backgroundColor: C.primary4, marginTop: -18 }} />
+          <PipeStep label="Aprobación" count="18" state="active" />
+          <View style={{ flex: 0.3, height: 2, backgroundColor: '#fde68a', marginTop: -18 }} />
+          <PipeStep label="Desembolso" count="56" state="done" />
+          <View style={{ flex: 0.3, height: 2, backgroundColor: C.primary4, marginTop: -18 }} />
+          <PipeStep label="Al día" count="143" state="done" />
+        </View>
+      </Animated.View>
+
+      {/* ── LINE CHART ────────────────────────────── */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, marginTop: 6 }}>
+        <Text style={s.sectionTitle}>Tendencia de cobros</Text>
+        <View style={{ backgroundColor: C.primary5, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 }}>
+          <Text style={{ fontSize: 10, fontWeight: '700', color: C.primary2 }}>Últimos 7 días</Text>
+        </View>
+      </View>
+      <Animated.View entering={FadeInDown.delay(470).springify()} style={s.card}>
+        <LineChart />
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
+          <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '600' }}>Lun</Text>
+          <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '600' }}>Mar</Text>
+          <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '600' }}>Mié</Text>
+          <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '600' }}>Jue</Text>
+          <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '600' }}>Vie</Text>
+          <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '600' }}>Sáb</Text>
+          <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '600' }}>Dom</Text>
+        </View>
+      </Animated.View>
+
+      {/* ── BAR CHART ────────────────────────────── */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, marginTop: 6 }}>
+        <Text style={s.sectionTitle}>Cobros mensuales</Text>
+        <View style={{ backgroundColor: C.primary5, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 }}>
+          <Text style={{ fontSize: 10, fontWeight: '700', color: C.primary2 }}>2026</Text>
+        </View>
+      </View>
+      <Animated.View entering={FadeInDown.delay(490).springify()} style={s.card}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 110, gap: 4 }}>
+          {MONTHLY.map((d, i) => (
+            <View key={i} style={{ flex: 1, alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
+              {!d.forecast && <Text style={{ fontSize: 8, fontWeight: '700', color: d.peak ? C.primary2 : C.textMuted }}>${d.amt}k</Text>}
+              {d.forecast ? (
+                <View style={{ width: '100%', height: d.h, borderRadius: 6, borderWidth: 1.5, borderColor: C.primary3, borderStyle: 'dashed' }} />
+              ) : (
+                <View style={{ width: '100%', height: d.h, borderRadius: 6, backgroundColor: d.peak ? C.primary2 : C.primary4 }} />
+              )}
+              <Text style={{ fontSize: 8, color: C.textMuted, fontWeight: '600' }}>{d.month}</Text>
+            </View>
+          ))}
+        </View>
+      </Animated.View>
+    </>
+  );
+
+  const renderPrestamosContent = () => (
+    <Animated.View entering={FadeIn.delay(200)}>
+      <View style={s.row}>
+        <View style={[s.statCard, { flex: 1 }]}>
+          <Text style={{ fontSize: 24, fontWeight: '900', color: C.text }}>{loans.length}</Text>
+          <Text style={{ fontSize: 12, color: C.textSub, fontWeight: '600' }}>Total préstamos</Text>
+        </View>
+        <View style={{ width: 10 }} />
+        <View style={[s.statCard, { flex: 1 }]}>
+          <Text style={{ fontSize: 24, fontWeight: '900', color: C.success }}>{fmt(totalAmount)}</Text>
+          <Text style={{ fontSize: 12, color: C.textSub, fontWeight: '600' }}>Monto total</Text>
+        </View>
+      </View>
+      <View style={{ height: 10 }} />
+      <View style={s.row}>
+        <View style={[s.statCard, { flex: 1 }]}>
+          <Text style={{ fontSize: 24, fontWeight: '900', color: C.warning }}>{pendingLoans.length}</Text>
+          <Text style={{ fontSize: 12, color: C.textSub, fontWeight: '600' }}>Pendientes</Text>
+        </View>
+        <View style={{ width: 10 }} />
+        <View style={[s.statCard, { flex: 1 }]}>
+          <Text style={{ fontSize: 24, fontWeight: '900', color: C.danger }}>{overdueLoans.length}</Text>
+          <Text style={{ fontSize: 12, color: C.textSub, fontWeight: '600' }}>Vencidos</Text>
+        </View>
+      </View>
+      
+      <Text style={[s.sectionTitle, { marginTop: 16 }]}>Todos los préstamos</Text>
+      {loans.map((loan, i) => (
+        <Animated.View
+          key={loan.id}
+          entering={SlideInRight.delay(300 + i * 60).springify()}
+          layout={Layout.springify()}
+        >
+          <Pressable
+            style={({ pressed }) => [s.loanRow, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
+            onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+          >
+            <LoanAvatar name={loan.borrowerName} idx={i} />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: C.text }} numberOfLines={1}>{loan.borrowerName}</Text>
+              <Text style={{ fontSize: 10, color: C.textMuted, marginTop: 2 }}>
+                ID: #{loan.id} · {new Date(loan.createdAt || Date.now()).toLocaleDateString('es-DO', { day: '2-digit', month: 'short' })}
+              </Text>
+            </View>
+            <View style={{ alignItems: 'flex-end', gap: 4 }}>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: C.text }}>{fmt(loan.amount)}</Text>
+              <StatusPill status={loan.status} />
+            </View>
+            <Ionicons name="chevron-forward" size={14} color={C.textMuted} style={{ marginLeft: 6 }} />
+          </Pressable>
+        </Animated.View>
+      ))}
+    </Animated.View>
+  );
+
+  const renderClientesContent = () => (
+    <Animated.View entering={FadeIn.delay(200)}>
+      <View style={s.card}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <Text style={{ fontSize: 16, fontWeight: '800', color: C.text }}>Clientes destacados</Text>
+          <Ionicons name="people" size={24} color={C.primary2} />
+        </View>
+        {MOCK_CLIENTS.map((client, i) => (
+          <Pressable
+            key={client.id}
+            style={({ pressed }) => [
+              { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: i < MOCK_CLIENTS.length - 1 ? 1 : 0, borderBottomColor: C.border },
+              pressed && { opacity: 0.7 }
+            ]}
+          >
+            <LoanAvatar name={client.name} idx={i} />
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: C.text }}>{client.name}</Text>
+              <Text style={{ fontSize: 10, color: C.textMuted }}>{client.email} · {client.phone}</Text>
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: C.primary2 }}>{client.loans} préstamos</Text>
+              <Text style={{ fontSize: 10, color: C.textMuted }}>{fmt(client.totalAmount)}</Text>
+            </View>
+          </Pressable>
+        ))}
+      </View>
+      
+      <View style={[s.card, { marginTop: 10 }]}>
+        <Text style={{ fontSize: 14, fontWeight: '800', color: C.text, marginBottom: 12 }}>Estadísticas de clientes</Text>
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <View style={{ flex: 1, alignItems: 'center', padding: 12, backgroundColor: C.primary5, borderRadius: 12 }}>
+            <Text style={{ fontSize: 22, fontWeight: '900', color: C.primary2 }}>156</Text>
+            <Text style={{ fontSize: 10, color: C.textSub, fontWeight: '600' }}>Total clientes</Text>
+          </View>
+          <View style={{ flex: 1, alignItems: 'center', padding: 12, backgroundColor: '#ecfdf5', borderRadius: 12 }}>
+            <Text style={{ fontSize: 22, fontWeight: '900', color: C.success }}>142</Text>
+            <Text style={{ fontSize: 10, color: C.textSub, fontWeight: '600' }}>Activos</Text>
+          </View>
+          <View style={{ flex: 1, alignItems: 'center', padding: 12, backgroundColor: '#fffbeb', borderRadius: 12 }}>
+            <Text style={{ fontSize: 22, fontWeight: '900', color: C.warning }}>14</Text>
+            <Text style={{ fontSize: 10, color: C.textSub, fontWeight: '600' }}>Nuevos (mes)</Text>
+          </View>
+        </View>
+      </View>
+    </Animated.View>
+  );
+
+  const renderReportesContent = () => (
+    <Animated.View entering={FadeIn.delay(200)}>
+      <View style={s.card}>
+        <Text style={{ fontSize: 16, fontWeight: '800', color: C.text, marginBottom: 12 }}>Reportes generados</Text>
+        {MOCK_REPORTS.map((report, i) => (
+          <Pressable
+            key={report.id}
+            style={({ pressed }) => [
+              { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: i < MOCK_REPORTS.length - 1 ? 1 : 0, borderBottomColor: C.border },
+              pressed && { opacity: 0.7 }
+            ]}
+          >
+            <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: C.primary5, alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="document-text" size={20} color={C.primary2} />
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: C.text }}>{report.title}</Text>
+              <Text style={{ fontSize: 10, color: C.textMuted }}>{report.date} · {report.type}</Text>
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              {report.amount && <Text style={{ fontSize: 12, fontWeight: '800', color: C.text }}>{fmt(report.amount)}</Text>}
+              {report.score && <Text style={{ fontSize: 12, fontWeight: '800', color: C.success }}>{report.score} pts</Text>}
+              {report.growth && <Text style={{ fontSize: 12, fontWeight: '800', color: C.primary2 }}>+{report.growth}%</Text>}
+            </View>
+          </Pressable>
+        ))}
+      </View>
+      
+      <View style={[s.card, { marginTop: 10 }]}>
+        <Text style={{ fontSize: 14, fontWeight: '800', color: C.text, marginBottom: 12 }}>KPIs principales</Text>
+        <View style={{ gap: 8 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text style={{ fontSize: 12, color: C.textSub }}>ROI Cartera</Text>
+            <Text style={{ fontSize: 14, fontWeight: '800', color: C.success }}>18.5%</Text>
+          </View>
+          <View style={{ height: 4, backgroundColor: C.primary4, borderRadius: 2 }}>
+            <View style={{ width: '85%', height: 4, backgroundColor: C.success, borderRadius: 2 }} />
+          </View>
+          
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+            <Text style={{ fontSize: 12, color: C.textSub }}>Índice de morosidad</Text>
+            <Text style={{ fontSize: 14, fontWeight: '800', color: C.warning }}>4.2%</Text>
+          </View>
+          <View style={{ height: 4, backgroundColor: C.primary4, borderRadius: 2 }}>
+            <View style={{ width: '28%', height: 4, backgroundColor: C.warning, borderRadius: 2 }} />
+          </View>
+          
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+            <Text style={{ fontSize: 12, color: C.textSub }}>Crecimiento mensual</Text>
+            <Text style={{ fontSize: 14, fontWeight: '800', color: C.primary2 }}>12.3%</Text>
+          </View>
+          <View style={{ height: 4, backgroundColor: C.primary4, borderRadius: 2 }}>
+            <View style={{ width: '72%', height: 4, backgroundColor: C.primary2, borderRadius: 2 }} />
+          </View>
+        </View>
+      </View>
+    </Animated.View>
+  );
 
   return (
     <View style={s.root}>
@@ -324,7 +642,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
               <View>
                 <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', fontWeight: '600', letterSpacing: 0.5, marginBottom: 4 }}>Cartera Total Activa</Text>
-                <Text style={{ fontSize: 30, fontWeight: '900', color: 'white', letterSpacing: -1 }}>$284,750.00</Text>
+                <Text style={{ fontSize: 30, fontWeight: '900', color: 'white', letterSpacing: -1 }}>{fmt(totalAmount)}</Text>
               </View>
               <View style={{ width: 42, height: 42, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}>
                 <Ionicons name="wallet-outline" size={20} color="rgba(255,255,255,0.8)" />
@@ -333,10 +651,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.15)', marginBottom: 14 }} />
             <View style={{ flexDirection: 'row' }}>
               {[
-                { num: activeLoans.length + 36, lbl: 'Activos' },
-                { num: pendingLoans.length + 9, lbl: 'Pendientes' },
-                { num: overdueLoans.length + 7, lbl: 'Vencidos' },
-                { num: loans.length + 100, lbl: 'Total' },
+                { num: activeLoans.length, lbl: 'Activos' },
+                { num: pendingLoans.length, lbl: 'Pendientes' },
+                { num: overdueLoans.length, lbl: 'Vencidos' },
+                { num: loans.length, lbl: 'Total' },
               ].map((stat, i) => (
                 <React.Fragment key={i}>
                   {i > 0 && <View style={{ width: 1, height: 28, backgroundColor: 'rgba(255,255,255,0.15)' }} />}
@@ -349,69 +667,26 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             </View>
           </Animated.View>
 
-          {/* Tabs */}
-          <View style={{ flexDirection: 'row', marginTop: 16 }}>
-            {['Resumen', 'Préstamos', 'Clientes', 'Reportes'].map((t, i) => (
-              <TouchableOpacity key={t} style={[s.tab, i === 0 && s.tabActive]}>
-                <Text style={[{ fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,0.5)' }, i === 0 && { color: 'white' }]}>{t}</Text>
+          {/* Tabs funcionales */}
+          <View style={{ flexDirection: 'row', marginTop: 16, paddingHorizontal: 8 }}>
+            {(['Resumen', 'Préstamos', 'Clientes', 'Reportes'] as const).map((tab) => (
+              <TouchableOpacity 
+                key={tab} 
+                style={[s.tab, activeTab === tab && s.tabActive]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setActiveTab(tab);
+                }}
+              >
+                <Text style={[{ fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,0.5)' }, activeTab === tab && { color: 'white' }]}>{tab}</Text>
               </TouchableOpacity>
             ))}
           </View>
         </LinearGradient>
 
         <View style={s.body}>
-
-          {/* ── MÉTRICAS ─────────────────────────────── */}
-          <View style={s.row}>
-            <MetricCard icon="💰" label="Cobrado este mes" value="$18,420" trend="▲ 12% vs mes ant." up delay={280} />
-            <View style={{ width: 10 }} />
-            <MetricCard icon="⚠️" label="Por vencer (7 días)" value="$9,310" trend="▼ 8 préstamos" delay={320} />
-          </View>
-          <View style={{ height: 10 }} />
-          <View style={s.row}>
-            <MetricCard icon="📈" label="Tasa de cobro" value="94.2%" trend="▲ Excelente" up delay={360} />
-            <View style={{ width: 10 }} />
-            <MetricCard icon="🏦" label="Capital disponible" value="$32,000" trend="→ Listo para prestar" neu delay={400} />
-          </View>
-
-          {/* ── PIPELINE ─────────────────────────────── */}
-          <Text style={s.sectionTitle}>Proceso de préstamos</Text>
-          <Animated.View entering={FadeInDown.delay(440).springify()} style={s.card}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <PipeStep label="Solicitud" count="34" state="done" />
-              <View style={{ flex: 0.3, height: 2, backgroundColor: C.primary4, marginTop: -18 }} />
-              <PipeStep label="Evaluación" count="28" state="done" />
-              <View style={{ flex: 0.3, height: 2, backgroundColor: C.primary4, marginTop: -18 }} />
-              <PipeStep label="Aprobación" count="11" state="active" />
-              <View style={{ flex: 0.3, height: 2, backgroundColor: '#fde68a', marginTop: -18 }} />
-              <PipeStep label="Desembolso" count="42" state="done" />
-              <View style={{ flex: 0.3, height: 2, backgroundColor: C.primary4, marginTop: -18 }} />
-              <PipeStep label="Al día" count="112" state="done" />
-            </View>
-          </Animated.View>
-
-          {/* ── BAR CHART ────────────────────────────── */}
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, marginTop: 6 }}>
-            <Text style={s.sectionTitle}>Cobros mensuales</Text>
-            <View style={{ backgroundColor: C.primary5, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 }}>
-              <Text style={{ fontSize: 10, fontWeight: '700', color: C.primary2 }}>2025</Text>
-            </View>
-          </View>
-          <Animated.View entering={FadeInDown.delay(490).springify()} style={s.card}>
-            <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 110, gap: 4 }}>
-              {MONTHLY.map((d, i) => (
-                <View key={i} style={{ flex: 1, alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
-                  {!d.forecast && <Text style={{ fontSize: 8, fontWeight: '700', color: d.peak ? C.primary2 : C.textMuted }}>${d.amt}k</Text>}
-                  {d.forecast ? (
-                    <View style={{ width: '100%', height: 30, borderRadius: 6, borderWidth: 1.5, borderColor: C.primary3, borderStyle: 'dashed' }} />
-                  ) : (
-                    <View style={{ width: '100%', height: d.h, borderRadius: 6, backgroundColor: d.peak ? C.primary2 : C.primary4 }} />
-                  )}
-                  <Text style={{ fontSize: 8, color: C.textMuted, fontWeight: '600' }}>{d.month}</Text>
-                </View>
-              ))}
-            </View>
-          </Animated.View>
+          {/* ── CONTENIDO DINÁMICO SEGÚN TAB ─────────────── */}
+          {renderTabContent()}
 
           {/* ── DONUT ────────────────────────────────── */}
           <Text style={s.sectionTitle}>Distribución de cartera</Text>
@@ -427,29 +702,29 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           <View style={s.row}>
             <QuickAction icon="➕" label="Nuevo préstamo" sub="Registrar cliente" iconBg={C.primary5} onPress={() => go('Loans')} delay={590} />
             <View style={{ width: 10 }} />
-            <QuickAction icon="📋" label="Cobros del día" sub="8 pendientes" iconBg="#fffbeb" onPress={() => go('Loans')} delay={620} />
+            <QuickAction icon="📋" label="Cobros del día" sub="12 pendientes" iconBg="#fffbeb" onPress={() => go('Loans')} delay={620} />
           </View>
           <View style={{ height: 10 }} />
           <View style={s.row}>
             <QuickAction icon="💳" label="Registrar pago" sub="Marcar pagado" iconBg="#ecfdf5" onPress={() => go('Loans')} delay={650} />
             <View style={{ width: 10 }} />
-            <QuickAction icon="🔔" label="Vencidos" sub="8 en mora" iconBg="#fef2f2" onPress={() => go('Loans')} delay={680} />
+            <QuickAction icon="🔔" label="Vencidos" sub="9 en mora" iconBg="#fef2f2" onPress={() => go('Loans')} delay={680} />
           </View>
           <View style={{ height: 10 }} />
           <View style={s.row}>
             <QuickAction icon="📊" label="Reportes" sub="Exportar PDF" iconBg="#f0fdf4" onPress={() => go('Settings')} delay={710} />
             <View style={{ width: 10 }} />
-            <QuickAction icon="🔍" label="Evaluar solicitud" sub="11 en revisión" iconBg="#eff6ff" onPress={() => go('Loans')} delay={740} />
+            <QuickAction icon="🔍" label="Evaluar solicitud" sub="18 en revisión" iconBg="#eff6ff" onPress={() => go('Loans')} delay={740} />
           </View>
 
           {/* ── PRÉSTAMOS RECIENTES ───────────────────── */}
           <View style={[s.sectionRow, { marginTop: 18 }]}>
             <Text style={s.sectionTitle}>Préstamos recientes</Text>
-            <TouchableOpacity onPress={() => go('Loans')}>
+            <TouchableOpacity onPress={() => setActiveTab('Préstamos')}>
               <Text style={{ fontSize: 11, color: C.primary2, fontWeight: '700' }}>Ver todos →</Text>
             </TouchableOpacity>
           </View>
-          {loans.map((loan, i) => (
+          {loans.slice(0, 4).map((loan, i) => (
             <Animated.View
               key={loan.id}
               entering={SlideInRight.delay(780 + i * 60).springify()}
@@ -479,30 +754,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         </View>
       </RNAnimated.ScrollView>
 
-      {/* ── BOTTOM NAV ───────────────────────────────── */}
-      <View style={s.bottomNav}>
-        {[
-          { icon: 'grid-outline', label: 'Inicio', active: true },
-          { icon: 'document-text-outline', label: 'Préstamos', active: false },
-          { icon: 'add-circle', label: '', active: false, big: true },
-          { icon: 'people-outline', label: 'Clientes', active: false },
-          { icon: 'person-outline', label: 'Perfil', active: false },
-        ].map((nav, i) => (
-          <TouchableOpacity
-            key={i}
-            style={s.navItem}
-            onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
-          >
-            <Ionicons
-              name={nav.icon as any}
-              size={nav.big ? 34 : 22}
-              color={nav.active || nav.big ? C.primary2 : C.textMuted}
-            />
-            {!nav.big && <Text style={[s.navLbl, nav.active && { color: C.primary2 }]}>{nav.label}</Text>}
-            {nav.active && <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: C.primary2, marginTop: 1 }} />}
-          </TouchableOpacity>
-        ))}
-      </View>
+ 
     </View>
   );
 };
@@ -534,6 +786,7 @@ const s = StyleSheet.create({
 
   row: { flexDirection: 'row' },
   card: { backgroundColor: C.white, borderRadius: 20, padding: 18, marginBottom: 14, borderWidth: 0.5, borderColor: C.border },
+  statCard: { backgroundColor: C.white, borderRadius: 16, padding: 14, borderWidth: 0.5, borderColor: C.border },
   sectionTitle: { fontSize: 14, fontWeight: '800', color: C.text, marginBottom: 10, marginTop: 6 },
   sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
 
