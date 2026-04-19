@@ -11,6 +11,7 @@ import {
   Alert,
   Dimensions,
   Pressable,
+  StyleSheet,
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -22,55 +23,73 @@ import * as Google from 'expo-auth-session/providers/google';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { ResponseType } from 'expo-auth-session';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, {
-  FadeInDown,
-  FadeInUp,
-} from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthService } from '../../services/authService';
 import { NotificationService } from '../../services/notificationService';
 import { RootStackParamList } from '../../navigation/types';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
-// ─── Theme igual que HomeScreen ──────────────────────────────────
-const C = {
-  primary: '#5b21b6',
-  primary2: '#7c3aed',
-  primary3: '#a78bfa',
-  primary4: '#ddd6fe',
-  primary5: '#f5f3ff',
-  bg: '#f5f3ff',
-  white: '#ffffff',
-  text: '#1e1b4b',
-  textSub: '#64748b',
-  textMuted: '#94a3b8',
-  border: 'rgba(0,0,0,0.06)',
-  success: '#059669',
-  danger: '#dc2626',
+// ─── Design System (igual que AppNavigator) ───────────────────────────────────
+const DS = {
+  colors: {
+    grad0: '#3b0764',
+    grad1: '#5b21b6',
+    grad2: '#6d28d9',
+    grad3: '#7c3aed',
+    accent: '#a78bfa',
+    accentSoft: '#ddd6fe',
+    surface: '#f5f3ff',
+    white: '#ffffff',
+    text: '#1e1b4b',
+    textSub: '#64748b',
+    textMuted: '#94a3b8',
+    border: 'rgba(0,0,0,0.07)',
+    borderActive: '#7c3aed',
+    success: '#059669',
+    danger: '#dc2626',
+    overlayLight: 'rgba(255,255,255,0.13)',
+    overlayActive: 'rgba(255,255,255,0.22)',
+  },
+  font: { xs: 11, sm: 13, md: 15, lg: 17, xl: 22, title: 34 },
+  weight: {
+    regular: '400' as const,
+    medium: '500' as const,
+    semibold: '600' as const,
+    bold: '700' as const,
+    black: '900' as const,
+  },
+  space: { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 28 },
+  radius: { sm: 10, md: 14, lg: 20, xl: 28, pill: 999 },
 };
 
+const GRAD_BG     = [DS.colors.grad0, DS.colors.grad1, DS.colors.grad2] as const;
+const GRAD_BTN    = [DS.colors.grad3, DS.colors.grad1] as const;
+const GRAD_LOGO   = [DS.colors.accent, DS.colors.grad3] as const;
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Login'>;
 type UserRole = 'cliente' | 'cobrador';
-
-interface LoginScreenProps {
-  navigation: LoginScreenNavigationProp;
-}
+interface LoginScreenProps { navigation: LoginScreenNavigationProp; }
 
 WebBrowser.maybeCompleteAuthSession();
 
+// ─── Component ────────────────────────────────────────────────────────────────
 export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const insets = useSafeAreaInsets();
+
+  const [email, setEmail]               = useState('');
+  const [password, setPassword]         = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [authLoading, setAuthLoading] = useState<'email' | 'google' | 'facebook' | 'apple' | null>(null);
-  const [role, setRole] = useState<UserRole>('cliente');
+  const [authLoading, setAuthLoading]   = useState<'email' | 'google' | 'facebook' | 'apple' | null>(null);
+  const [role, setRole]                 = useState<UserRole>('cliente');
   const [emailFocused, setEmailFocused] = useState(false);
-  const [passFocused, setPassFocused] = useState(false);
+  const [passFocused, setPassFocused]   = useState(false);
 
-  const fadeAnim = useRef(new RNAnimated.Value(0)).current;
-  const slideAnim = useRef(new RNAnimated.Value(30)).current;
+  const fadeAnim  = useRef(new RNAnimated.Value(0)).current;
+  const slideAnim = useRef(new RNAnimated.Value(40)).current;
 
-  // Google Auth
   const [googleRequest, googleResponse, googlePromptAsync] = Google.useAuthRequest({
     androidClientId: 'TU_ANDROID_CLIENT_ID',
     iosClientId: 'TU_IOS_CLIENT_ID',
@@ -81,16 +100,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   useEffect(() => {
     initializeApp();
     RNAnimated.parallel([
-      RNAnimated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      RNAnimated.timing(slideAnim, {
-        toValue: 0,
-        duration: 500,
-        useNativeDriver: true,
-      }),
+      RNAnimated.timing(fadeAnim,  { toValue: 1, duration: 700, useNativeDriver: true }),
+      RNAnimated.timing(slideAnim, { toValue: 0, duration: 600, useNativeDriver: true }),
     ]).start();
   }, []);
 
@@ -104,71 +115,51 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     try {
       await AuthService.initialize();
       await NotificationService.initialize();
-    } catch (error) {
-      console.error('Init error:', error);
-    }
+    } catch (e) { console.error('Init error:', e); }
   };
 
   const handleLogin = async () => {
-    if (!email.trim() ||!password.trim()) {
+    if (!email.trim() || !password.trim()) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Error', 'Completa todos los campos');
+      Alert.alert('Campos incompletos', 'Por favor completa todos los campos.');
       return;
     }
-
     setAuthLoading('email');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
     try {
       const user = await AuthService.login(email.trim(), password, role);
       if (user) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        navigation.replace('MainDrawer'); // ← Como estaba antes
+        navigation.replace('MainDrawer');
       }
-    } catch (error) {
+    } catch {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Error', 'Credenciales incorrectas');
-    } finally {
-      setAuthLoading(null);
-    }
+      Alert.alert('Acceso denegado', 'Credenciales incorrectas. Inténtalo de nuevo.');
+    } finally { setAuthLoading(null); }
   };
 
-  // ─── Login simulado con Google ────────────────────────────────
   const handleGoogleAuth = async (token?: string) => {
     setAuthLoading('google');
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      // Simulado: en prod usarías AuthService.loginWithGoogle(token, role)
-      await new Promise(resolve => setTimeout(resolve, 1200));
+      await new Promise(r => setTimeout(r, 1200));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      navigation.replace('MainTabs'); // ← Como estaba antes
-    } catch (error) {
-      Alert.alert('Error', 'No se pudo autenticar con Google');
-    } finally {
-      setAuthLoading(null);
-    }
+      navigation.replace('MainDrawer');
+    } catch { Alert.alert('Error', 'No se pudo autenticar con Google'); }
+    finally { setAuthLoading(null); }
   };
 
-  // ─── Login simulado con Facebook ──────────────────────────────
   const handleFacebookAuth = async () => {
     setAuthLoading('facebook');
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      // Simulado: en prod usarías expo-auth-session con Facebook
-      await new Promise(resolve => setTimeout(resolve, 1200));
+      await new Promise(r => setTimeout(r, 1200));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      navigation.replace('MainDrawer'); // ← Igual que email login
-    } catch (error) {
-      Alert.alert('Error', 'No se pudo autenticar con Facebook');
-    } finally {
-      setAuthLoading(null);
-    }
+      navigation.replace('MainDrawer');
+    } catch { Alert.alert('Error', 'No se pudo autenticar con Facebook'); }
+    finally { setAuthLoading(null); }
   };
 
-  // ─── Login con Apple ──────────────────────────────────────────
   const handleAppleAuth = async () => {
     setAuthLoading('apple');
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       const credential = await AppleAuthentication.signInAsync({
         requestedScopes: [
@@ -176,287 +167,299 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
         ],
       });
-
       if (credential.identityToken) {
-        // Simulado
-        await new Promise(resolve => setTimeout(resolve, 800));
+        await new Promise(r => setTimeout(r, 800));
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        navigation.replace('MainDrawer'); // ← Como estaba antes
+        navigation.replace('MainDrawer');
       }
-    } catch (error: any) {
-      if (error.code!== 'ERR_REQUEST_CANCELED') {
-        Alert.alert('Error', 'No se pudo autenticar con Apple');
-      }
-    } finally {
-      setAuthLoading(null);
-    }
+    } catch (e: any) {
+      if (e.code !== 'ERR_REQUEST_CANCELED') Alert.alert('Error', 'No se pudo autenticar con Apple');
+    } finally { setAuthLoading(null); }
   };
 
-  const SocialButton = ({ icon, onPress, loadingKey, color, isIonicons = false }: any) => (
+  // ─── Derived values ─────────────────────────────────────────────────────────
+  const hour       = new Date().getHours();
+  const greeting   = hour < 12 ? 'Buenos días ☀️' : hour < 18 ? 'Buenas tardes 🌤' : 'Buenas noches 🌙';
+  const roleLabel  = role === 'cobrador' ? 'Gestión de cobros en ruta' : 'Sistema de préstamos inteligente';
+  const roleIcon   = role === 'cobrador' ? 'briefcase' : 'wallet';
+  const isDisabled = !!authLoading;
+
+  // ─── Sub-components ─────────────────────────────────────────────────────────
+  const SocialBtn = ({
+    icon, onPress, loadingKey, bg,
+  }: { icon: string; onPress: () => void; loadingKey: string; bg: string }) => (
     <TouchableOpacity
-      style={[s.socialButton, { backgroundColor: color, opacity: authLoading && authLoading!== loadingKey? 0.4 : 1 }]}
+      style={[styles.socialBtn, { backgroundColor: bg, opacity: isDisabled && authLoading !== loadingKey ? 0.4 : 1 }]}
       onPress={onPress}
-      disabled={!!authLoading}
+      disabled={isDisabled}
       activeOpacity={0.8}
     >
-      {authLoading === loadingKey? (
-        <ActivityIndicator color="#fff" size="small" />
-      ) : isIonicons? (
-        <Ionicons name={icon} size={24} color="#fff" />
-      ) : (
-        <Text style={s.socialIconText}>{icon}</Text>
-      )}
+      {authLoading === loadingKey
+        ? <ActivityIndicator color={DS.colors.white} size="small" />
+        : <Ionicons name={icon as any} size={22} color={DS.colors.white} />}
     </TouchableOpacity>
   );
 
-  const hour = new Date().getHours();
-  const greeting = hour < 12? 'Buenos días' : hour < 18? 'Buenas tardes' : 'Buenas noches';
-  const roleText = role === 'cobrador'? 'Gestión de cobros en ruta' : 'Sistema de préstamos inteligente';
-  const roleIcon = role === 'cobrador'? 'briefcase' : 'wallet';
-
   return (
-    <LinearGradient
-      colors={[C.primary, '#6d28d9']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={s.container}
-    >
+    <LinearGradient colors={GRAD_BG} start={{ x: 0, y: 0 }} end={{ x: 0.4, y: 1 }} style={styles.root}>
       <StatusBar style="light" />
+
+      {/* Orbes decorativos de fondo */}
+      <View style={[styles.orb, styles.orbTop]} />
+      <View style={[styles.orb, styles.orbBottom]} />
+
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios'? 'padding' : 'height'}
-        style={s.keyboardView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.kav}
       >
-        <RNAnimated.View
-          style={[
-            s.content,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }]
-            }
+        <RNAnimated.ScrollView
+          contentContainerStyle={[
+            styles.scroll,
+            { paddingTop: insets.top + DS.space.xl, paddingBottom: insets.bottom + DS.space.xl },
           ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}
         >
-          {/* Header */}
-          <Animated.View entering={FadeInDown.delay(100).springify()} style={s.header}>
-            <View style={s.logoWrapper}>
-              <LinearGradient
-                colors={[C.primary2, C.primary]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={s.logo}
-              >
-                <Ionicons name={roleIcon} size={32} color="white" />
+          {/* ── Header ─────────────────────────────────────────────────────── */}
+          <Animated.View entering={FadeInDown.delay(80).springify()} style={styles.header}>
+            {/* Logo */}
+            <View style={styles.logoShadow}>
+              <LinearGradient colors={GRAD_LOGO} style={styles.logo}>
+                <Ionicons name={roleIcon as any} size={30} color={DS.colors.white} />
               </LinearGradient>
             </View>
-            <Text style={s.greeting}>{greeting} 👋</Text>
-            <Text style={s.title}>DomPresta</Text>
-            <Text style={s.subtitle}>{roleText}</Text>
+
+            <Text style={styles.greeting}>{greeting}</Text>
+            <Text style={styles.appName}>DomPresta</Text>
+            <Text style={styles.appSub}>{roleLabel}</Text>
           </Animated.View>
 
-          {/* Selector de Rol */}
-          <Animated.View entering={FadeInDown.delay(200).springify()} style={s.roleSwitch}>
-            {(['cliente', 'cobrador'] as UserRole[]).map((r) => (
-              <Pressable
-                key={r}
-                style={[s.roleBtn, role === r && s.roleBtnActive]}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setRole(r);
-                }}
-              >
+          {/* ── Role Toggle ─────────────────────────────────────────────────── */}
+          <Animated.View entering={FadeInDown.delay(160).springify()} style={styles.roleRow}>
+            {(['cliente', 'cobrador'] as UserRole[]).map((r) => {
+              const active = role === r;
+              return (
+                <Pressable
+                  key={r}
+                  style={[styles.roleBtn, active && styles.roleBtnActive]}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setRole(r); }}
+                >
+                  {active && (
+                    <LinearGradient
+                      colors={[DS.colors.overlayActive, 'rgba(255,255,255,0.08)']}
+                      start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                      style={[StyleSheet.absoluteFill, { borderRadius: DS.radius.sm }]}
+                    />
+                  )}
+                  <Ionicons
+                    name={(r === 'cobrador' ? 'briefcase-outline' : 'person-outline') as any}
+                    size={15}
+                    color={active ? DS.colors.white : 'rgba(255,255,255,0.5)'}
+                  />
+                  <Text style={[styles.roleTxt, active && styles.roleTxtActive]}>
+                    {r === 'cobrador' ? 'Cobrador' : 'Cliente'}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </Animated.View>
+
+          {/* ── Form Card ──────────────────────────────────────────────────── */}
+          <Animated.View entering={FadeInUp.delay(240).springify()}>
+            <BlurView intensity={20} tint="light" style={styles.card}>
+
+              {/* Email */}
+              <View style={[styles.field, emailFocused && styles.fieldActive]}>
                 <Ionicons
-                  name={r === 'cobrador'? 'briefcase-outline' : 'person-outline'}
-                  size={16}
-                  color={role === r? C.white : 'rgba(255,255,255,0.6)'}
+                  name="mail-outline"
+                  size={19}
+                  color={emailFocused ? DS.colors.grad3 : DS.colors.textMuted}
+                  style={styles.fieldIcon}
                 />
-                <Text style={[s.roleText, role === r && s.roleTextActive]}>
-                  {r === 'cobrador'? 'Cobrador' : 'Cliente'}
-                </Text>
-              </Pressable>
-            ))}
-          </Animated.View>
-
-          {/* Form */}
-          <Animated.View entering={FadeInUp.delay(300).springify()}>
-            <BlurView intensity={30} tint="light" style={s.form}>
-              <View style={[s.inputContainer, emailFocused && s.inputActive]}>
-                <Ionicons name="mail-outline" size={20} color={emailFocused? C.primary2 : C.textMuted} style={s.inputIcon} />
                 <TextInput
-                  style={s.input}
-                  placeholder="Email"
-                  placeholderTextColor={C.textMuted}
+                  style={styles.fieldInput}
+                  placeholder="Correo electrónico"
+                  placeholderTextColor={DS.colors.textMuted}
                   value={email}
                   onChangeText={setEmail}
                   onFocus={() => setEmailFocused(true)}
                   onBlur={() => setEmailFocused(false)}
                   keyboardType="email-address"
                   autoCapitalize="none"
-                  editable={!authLoading}
+                  editable={!isDisabled}
                 />
               </View>
 
-              <View style={[s.inputContainer, passFocused && s.inputActive]}>
-                <Ionicons name="lock-closed-outline" size={20} color={passFocused? C.primary2 : C.textMuted} style={s.inputIcon} />
+              {/* Password */}
+              <View style={[styles.field, passFocused && styles.fieldActive]}>
+                <Ionicons
+                  name="lock-closed-outline"
+                  size={19}
+                  color={passFocused ? DS.colors.grad3 : DS.colors.textMuted}
+                  style={styles.fieldIcon}
+                />
                 <TextInput
-                  style={[s.input, { flex: 1 }]}
+                  style={[styles.fieldInput, { flex: 1 }]}
                   placeholder="Contraseña"
-                  placeholderTextColor={C.textMuted}
+                  placeholderTextColor={DS.colors.textMuted}
                   value={password}
                   onChangeText={setPassword}
                   onFocus={() => setPassFocused(true)}
                   onBlur={() => setPassFocused(false)}
                   secureTextEntry={!showPassword}
-                  editable={!authLoading}
+                  editable={!isDisabled}
                 />
-                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={s.eyeButton}>
-                  <Ionicons
-                    name={showPassword? "eye-off-outline" : "eye-outline"}
-                    size={20}
-                    color={C.textMuted}
-                  />
+                <TouchableOpacity onPress={() => setShowPassword(p => !p)} style={styles.eyeBtn} hitSlop={8}>
+                  <Ionicons name={(showPassword ? 'eye-off-outline' : 'eye-outline') as any} size={19} color={DS.colors.textMuted} />
                 </TouchableOpacity>
               </View>
 
+              {/* Forgot */}
               <TouchableOpacity
-                style={s.forgotButton}
-                onPress={() => Alert.alert('Recuperar contraseña', 'Te enviaremos un link a tu correo')}
+                style={styles.forgotRow}
+                onPress={() => Alert.alert('Recuperar contraseña', 'Te enviaremos un link a tu correo.')}
               >
-                <Text style={s.forgotText}>¿Olvidaste tu contraseña?</Text>
+                <Text style={styles.forgotTxt}>¿Olvidaste tu contraseña?</Text>
               </TouchableOpacity>
 
+              {/* Login button */}
               <TouchableOpacity
-                style={[s.loginButton, authLoading && { opacity: 0.7 }]}
+                style={[styles.loginBtn, isDisabled && { opacity: 0.65 }]}
                 onPress={handleLogin}
-                disabled={!!authLoading}
-                activeOpacity={0.9}
+                disabled={isDisabled}
+                activeOpacity={0.88}
               >
-                <LinearGradient
-                  colors={[C.primary2, C.primary]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={s.loginGradient}
-                >
-                  {authLoading === 'email'? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text style={s.loginText}>Iniciar Sesión</Text>
-                  )}
+                <LinearGradient colors={GRAD_BTN} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.loginGrad}>
+                  {authLoading === 'email'
+                    ? <ActivityIndicator color={DS.colors.white} />
+                    : (
+                      <>
+                        <Text style={styles.loginTxt}>Iniciar Sesión</Text>
+                        <Ionicons name="arrow-forward" size={17} color={DS.colors.white} />
+                      </>
+                    )}
                 </LinearGradient>
               </TouchableOpacity>
 
               {/* Divider */}
-              <View style={s.divider}>
-                <View style={s.dividerLine} />
-                <Text style={s.dividerText}>o continúa con</Text>
-                <View style={s.dividerLine} />
+              <View style={styles.divider}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerTxt}>o continúa con</Text>
+                <View style={styles.dividerLine} />
               </View>
 
-              {/* Social Auth */}
-              <View style={s.socialContainer}>
-                <SocialButton
-                  icon="logo-google"
-                  onPress={() => googlePromptAsync()}
-                  loadingKey="google"
-                  color="#EA4335"
-                  isIonicons
-                />
-
-                <SocialButton
-                  icon="logo-facebook"
-                  onPress={handleFacebookAuth}
-                  loadingKey="facebook"
-                  color="#1877F2"
-                  isIonicons
-                />
-
+              {/* Social */}
+              <View style={styles.socialRow}>
+                <SocialBtn icon="logo-google"   onPress={() => googlePromptAsync()} loadingKey="google"   bg="#EA4335" />
+                <SocialBtn icon="logo-facebook" onPress={handleFacebookAuth}        loadingKey="facebook" bg="#1877F2" />
                 {Platform.OS === 'ios' && (
-                  <SocialButton
-                    icon="logo-apple"
-                    onPress={handleAppleAuth}
-                    loadingKey="apple"
-                    color="#000000"
-                    isIonicons
-                  />
+                  <SocialBtn icon="logo-apple"  onPress={handleAppleAuth}           loadingKey="apple"    bg="#000" />
                 )}
               </View>
 
-              {/* Demo Credentials */}
+              {/* Demo */}
               <TouchableOpacity
-                style={s.demoButton}
+                style={styles.demoBtn}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setEmail(role === 'cobrador'? 'cobrador@dompresta.com' : 'admin@dompresta.com');
+                  setEmail(role === 'cobrador' ? 'cobrador@dompresta.com' : 'admin@dompresta.com');
                   setPassword('admin123');
                 }}
               >
-                <Text style={s.demoText}>Usar credenciales demo</Text>
+                <Ionicons name="flash-outline" size={13} color={DS.colors.grad3} />
+                <Text style={styles.demoTxt}>Usar credenciales demo</Text>
               </TouchableOpacity>
+
             </BlurView>
           </Animated.View>
 
           {/* Footer */}
-          <Text style={s.footer}>DomPresta v2.0.0</Text>
-        </RNAnimated.View>
+          <Text style={styles.footer}>DomPresta v2.0.0  •  Todos los derechos reservados</Text>
+        </RNAnimated.ScrollView>
       </KeyboardAvoidingView>
     </LinearGradient>
   );
 };
 
-const s = {
-  container: {
-    flex: 1,
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
+// ─── StyleSheet ───────────────────────────────────────────────────────────────
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+  kav:  { flex: 1 },
+  scroll: {
+    flexGrow: 1,
     justifyContent: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: DS.space.xl,
   },
+
+  // Orbes de fondo
+  orb: {
+    position: 'absolute',
+    borderRadius: DS.radius.pill,
+    backgroundColor: 'rgba(167,139,250,0.10)',
+  },
+  orbTop: {
+    width: 320,
+    height: 320,
+    top: -80,
+    right: -80,
+  },
+  orbBottom: {
+    width: 260,
+    height: 260,
+    bottom: -60,
+    left: -60,
+    backgroundColor: 'rgba(109,40,217,0.18)',
+  },
+
+  // ── Header ────────────────────────────────────────────────────────────────
   header: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: DS.space.xl,
   },
-  logoWrapper: {
-    marginBottom: 16,
-    shadowColor: C.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
-    elevation: 12,
+  logoShadow: {
+    marginBottom: DS.space.lg,
+    shadowColor: DS.colors.accent,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 22,
+    elevation: 14,
   },
   logo: {
-    width: 70,
-    height: 70,
-    borderRadius: 20,
+    width: 72,
+    height: 72,
+    borderRadius: DS.radius.lg,
     justifyContent: 'center',
     alignItems: 'center',
   },
   greeting: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.7)',
-    fontWeight: '600',
-    marginBottom: 4,
+    fontSize: DS.font.sm,
+    fontWeight: DS.weight.semibold,
+    color: 'rgba(255,255,255,0.65)',
+    marginBottom: DS.space.xs,
+    letterSpacing: 0.2,
   },
-  title: {
-    fontSize: 34,
-    fontWeight: '900',
-    color: C.white,
-    letterSpacing: -0.8,
-    marginBottom: 4,
+  appName: {
+    fontSize: DS.font.title,
+    fontWeight: DS.weight.black,
+    color: DS.colors.white,
+    letterSpacing: -0.9,
+    marginBottom: DS.space.xs,
   },
-  subtitle: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.6)',
+  appSub: {
+    fontSize: DS.font.sm,
+    color: 'rgba(255,255,255,0.55)',
     letterSpacing: 0.3,
   },
-  roleSwitch: {
+
+  // ── Role Toggle ───────────────────────────────────────────────────────────
+  roleRow: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderRadius: 14,
-    padding: 4,
-    marginBottom: 20,
-    gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    borderRadius: DS.radius.md,
+    padding: DS.space.xs,
+    marginBottom: DS.space.lg,
+    gap: DS.space.xs,
   },
   roleBtn: {
     flex: 1,
@@ -464,137 +467,163 @@ const s = {
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 10,
-    borderRadius: 10,
-    gap: 6,
+    borderRadius: DS.radius.sm,
+    gap: DS.space.sm,
+    overflow: 'hidden',
   },
   roleBtnActive: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    // gradient inside
   },
-  roleText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.6)',
+  roleTxt: {
+    fontSize: DS.font.sm,
+    fontWeight: DS.weight.bold,
+    color: 'rgba(255,255,255,0.5)',
   },
-  roleTextActive: {
-    color: C.white,
+  roleTxtActive: {
+    color: DS.colors.white,
   },
-  form: {
-    borderRadius: 28,
-    padding: 22,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
+
+  // ── Card ──────────────────────────────────────────────────────────────────
+  card: {
+    borderRadius: DS.radius.xl,
     overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
+    padding: DS.space.xxl,
+    shadowColor: DS.colors.grad0,
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.25,
+    shadowRadius: 32,
+    elevation: 18,
   },
-  inputContainer: {
+
+  // ── Fields ────────────────────────────────────────────────────────────────
+  field: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 14,
-    backgroundColor: C.bg,
-    borderRadius: 14,
+    marginBottom: DS.space.md,
+    backgroundColor: DS.colors.surface,
+    borderRadius: DS.radius.md,
     borderWidth: 1.5,
-    borderColor: C.border,
-    paddingHorizontal: 14,
+    borderColor: DS.colors.border,
+    paddingHorizontal: DS.space.md,
   },
-  inputActive: {
-    borderColor: C.primary2,
-    backgroundColor: C.white,
+  fieldActive: {
+    borderColor: DS.colors.borderActive,
+    backgroundColor: DS.colors.white,
+    shadowColor: DS.colors.grad3,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  inputIcon: {
-    marginRight: 10,
-  },
-  input: {
+  fieldIcon: { marginRight: DS.space.md },
+  fieldInput: {
     flex: 1,
     paddingVertical: 14,
-    color: C.text,
-    fontSize: 15,
-    fontWeight: '500',
+    color: DS.colors.text,
+    fontSize: DS.font.md,
+    fontWeight: DS.weight.medium,
   },
-  eyeButton: {
-    padding: 6,
-  },
-  forgotButton: {
+  eyeBtn: { padding: DS.space.sm },
+
+  // ── Forgot ────────────────────────────────────────────────────────────────
+  forgotRow: {
     alignSelf: 'flex-end',
-    marginBottom: 20,
+    marginBottom: DS.space.xl,
   },
-  forgotText: {
-    color: C.primary2,
-    fontSize: 13,
-    fontWeight: '700',
+  forgotTxt: {
+    color: DS.colors.grad3,
+    fontSize: DS.font.sm,
+    fontWeight: DS.weight.bold,
   },
-  loginButton: {
-    borderRadius: 14,
+
+  // ── Login button ──────────────────────────────────────────────────────────
+  loginBtn: {
+    borderRadius: DS.radius.md,
     overflow: 'hidden',
-    marginBottom: 20,
-    shadowColor: C.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
+    marginBottom: DS.space.xl,
+    shadowColor: DS.colors.grad1,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.45,
+    shadowRadius: 14,
+    elevation: 10,
   },
-  loginGradient: {
+  loginGrad: {
     paddingVertical: 15,
     alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: DS.space.sm,
   },
-  loginText: {
-    color: C.white,
-    fontSize: 15,
-    fontWeight: '800',
-    letterSpacing: 0.5,
+  loginTxt: {
+    color: DS.colors.white,
+    fontSize: DS.font.md,
+    fontWeight: DS.weight.black,
+    letterSpacing: 0.4,
   },
+
+  // ── Divider ───────────────────────────────────────────────────────────────
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: DS.space.xl,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: C.border,
+    backgroundColor: DS.colors.border,
   },
-  dividerText: {
-    color: C.textMuted,
-    fontSize: 11,
-    fontWeight: '600',
-    marginHorizontal: 10,
+  dividerTxt: {
+    color: DS.colors.textMuted,
+    fontSize: DS.font.xs,
+    fontWeight: DS.weight.semibold,
+    marginHorizontal: DS.space.md,
+    letterSpacing: 0.2,
   },
-  socialContainer: {
+
+  // ── Social ────────────────────────────────────────────────────────────────
+  socialRow: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 12,
-    marginBottom: 16,
+    gap: DS.space.md,
+    marginBottom: DS.space.lg,
   },
-  socialButton: {
+  socialBtn: {
     width: 54,
     height: 54,
-    borderRadius: 16,
+    borderRadius: DS.radius.md,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 5,
   },
-  socialIconText: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: '700',
-  },
-  demoButton: {
+
+  // ── Demo ──────────────────────────────────────────────────────────────────
+  demoBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 6,
+    justifyContent: 'center',
+    gap: DS.space.xs,
+    paddingVertical: DS.space.xs,
   },
-  demoText: {
-    color: C.primary2,
-    fontSize: 13,
-    fontWeight: '700',
+  demoTxt: {
+    color: DS.colors.grad3,
+    fontSize: DS.font.sm,
+    fontWeight: DS.weight.bold,
   },
+
+  // ── Footer ────────────────────────────────────────────────────────────────
   footer: {
     textAlign: 'center',
-    color: 'rgba(255,255,255,0.4)',
-    fontSize: 11,
-    marginTop: 24,
-    fontWeight: '600',
+    color: 'rgba(255,255,255,0.35)',
+    fontSize: DS.font.xs,
+    marginTop: DS.space.xl,
+    fontWeight: DS.weight.semibold,
+    letterSpacing: 0.3,
   },
-} as const;
+});

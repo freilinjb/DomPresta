@@ -1,4 +1,4 @@
-// App.tsx - Versión React Native completa
+// App.tsx - Versión React Native completa con estilos StyleSheet (sin NativeWind)
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
@@ -15,6 +15,8 @@ import {
   Dimensions,
   Platform,
   RefreshControl,
+  Switch,
+  StyleSheet,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { LineChart } from 'react-native-chart-kit';
@@ -25,164 +27,333 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 
-// Interfaces
+// ============================================================
+// DESIGN TOKENS
+// ============================================================
+
+const COLORS = {
+  // Primarios
+  indigo: '#4F46E5',
+  indigoDark: '#3730A3',
+  indigoLight: '#EEF2FF',
+  violet: '#7C3AED',
+
+  // Categorías
+  green: '#059669',
+  greenLight: '#ECFDF5',
+  greenMid: '#10B981',
+  orange: '#EA580C',
+  orangeLight: '#FFF7ED',
+  orangeMid: '#F97316',
+  amber: '#D97706',
+  amberLight: '#FFFBEB',
+
+  // Semánticos
+  red: '#EF4444',
+  redLight: '#FEF2F2',
+  blue: '#3B82F6',
+  blueLight: '#EFF6FF',
+  purple: '#8B5CF6',
+  purpleLight: '#F5F3FF',
+
+  // Neutros
+  white: '#FFFFFF',
+  gray50: '#F9FAFB',
+  gray100: '#F3F4F6',
+  gray200: '#E5E7EB',
+  gray300: '#D1D5DB',
+  gray400: '#9CA3AF',
+  gray500: '#6B7280',
+  gray600: '#4B5563',
+  gray700: '#374151',
+  gray800: '#1F2937',
+  gray900: '#111827',
+
+  // Sombras
+  shadow: 'rgba(0,0,0,0.08)',
+  shadowMd: 'rgba(0,0,0,0.12)',
+};
+
+const RADIUS = {
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  '2xl': 24,
+  full: 9999,
+};
+
+const SPACING = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  base: 16,
+  lg: 20,
+  xl: 24,
+  '2xl': 32,
+};
+
+// ============================================================
+// INTERFACES
+// ============================================================
+
 interface Customer {
   id: number;
   first_name: string;
   last_name: string;
   phone?: string;
   email?: string;
+  address?: string;
+  document_id?: string;
+  credit_score?: number;
+  is_vip?: boolean;
 }
 
 interface Amortization {
   id: number;
   name: string;
   code: string;
+  description: string;
 }
 
 interface PaymentMode {
   id: number;
   name: string;
   code: string;
+  days_per_period: number;
 }
 
 interface AmortizationDetail {
-  month: number;
+  period: number;
   payment: number;
   principal: number;
   interest: number;
   remaining: number;
   status?: string;
   payment_date?: string;
+  is_weekend?: boolean;
 }
 
 interface CashBox {
   id: number;
   name: string;
+  balance: number;
 }
 
 interface PaymentMethod {
   id: number;
   name: string;
+  code: string;
 }
 
 interface LoanType {
   id: number;
   name: string;
+  code: string;
+  category: 'formal' | 'informal' | 'san' | 'micro';
+  min_amount: number;
+  max_amount: number;
+  default_interest: number;
+  default_term: number;
+  requires_guarantor: boolean;
+  requires_collateral: boolean;
 }
 
 interface GuaranteeType {
   id: number;
   name: string;
+  code: string;
 }
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const isTablet = SCREEN_WIDTH > 768;
+interface SanLoanConfig {
+  daily_payment: number;
+  term_days: number;
+  interest_type: 'fixed' | 'percentage';
+  interest_value: number;
+  include_weekends: boolean;
+  first_payment_delay: number;
+}
 
-// Datos mockeados
+interface InformalLoanConfig {
+  payment_frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly';
+  interest_calculation: 'flat' | 'declining' | 'fixed_amount';
+  grace_period: number;
+  late_fee_percentage: number;
+  early_payment_discount: number;
+}
+
+// ============================================================
+// MOCK DATA
+// ============================================================
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
 const MOCK_CUSTOMERS: Customer[] = [
-  { id: 1, first_name: 'Juan', last_name: 'Pérez', phone: '809-555-1234', email: 'juan@email.com' },
-  { id: 2, first_name: 'María', last_name: 'González', phone: '809-555-5678', email: 'maria@email.com' },
-  { id: 3, first_name: 'Carlos', last_name: 'Rodríguez', phone: '809-555-9012', email: 'carlos@email.com' },
-  { id: 4, first_name: 'Ana', last_name: 'Martínez', phone: '809-555-3456', email: 'ana@email.com' },
+  { id: 1, first_name: 'Juan', last_name: 'Pérez', phone: '809-555-1234', email: 'juan@email.com', document_id: '402-1234567-8', credit_score: 720, is_vip: true, address: 'Calle Principal #123' },
+  { id: 2, first_name: 'María', last_name: 'González', phone: '809-555-5678', email: 'maria@email.com', document_id: '402-8765432-1', credit_score: 680, is_vip: false, address: 'Av. Lincoln #456' },
+  { id: 3, first_name: 'Carlos', last_name: 'Rodríguez', phone: '809-555-9012', email: 'carlos@email.com', document_id: '402-3456789-0', credit_score: 550, is_vip: false, address: 'Calle Duarte #789' },
+  { id: 4, first_name: 'Ana', last_name: 'Martínez', phone: '809-555-3456', email: 'ana@email.com', document_id: '402-9876543-2', credit_score: 800, is_vip: true, address: 'Av. Independencia #321' },
 ];
 
 const MOCK_AMORTIZATIONS: Amortization[] = [
-  { id: 1, name: 'Francés (Cuota Fija)', code: 'AMRT001' },
-  { id: 2, name: 'Alemán (Capital Fijo)', code: 'AMRT002' },
-  { id: 3, name: 'Americano', code: 'AMRT003' },
-  { id: 4, name: 'Flat (Solo Interés)', code: 'AMRT004' },
+  { id: 1, name: 'Francés (Cuota Fija)', code: 'FRENCH', description: 'Pagos iguales, interés decreciente' },
+  { id: 2, name: 'Alemán (Capital Fijo)', code: 'GERMAN', description: 'Capital constante, interés decreciente' },
+  { id: 3, name: 'Americano', code: 'AMERICAN', description: 'Solo intereses, capital al final' },
+  { id: 4, name: 'Flat (Interés Simple)', code: 'FLAT', description: 'Interés calculado sobre monto inicial' },
+  { id: 5, name: 'San (Pago Diario Fijo)', code: 'SAN', description: 'Pagos diarios con interés predeterminado' },
+  { id: 6, name: 'Gota a Gota', code: 'DROPLET', description: 'Pagos diarios con interés alto' },
 ];
 
 const MOCK_PAYMENT_MODES: PaymentMode[] = [
-  { id: 1, name: 'Mensual', code: 'monthly' },
-  { id: 2, name: 'Quincenal', code: 'fortnightly' },
-  { id: 3, name: 'Semanal', code: 'weekly' },
-  { id: 4, name: 'Diario', code: 'daily' },
-];
-
-const MOCK_CASH_BOXES: CashBox[] = [
-  { id: 1, name: 'Caja Principal' },
-  { id: 2, name: 'Caja Secundaria' },
-];
-
-const MOCK_PAYMENT_METHODS: PaymentMethod[] = [
-  { id: 1, name: 'Efectivo' },
-  { id: 2, name: 'Transferencia' },
-  { id: 3, name: 'Cheque' },
+  { id: 1, name: 'Mensual', code: 'monthly', days_per_period: 30 },
+  { id: 2, name: 'Quincenal', code: 'biweekly', days_per_period: 15 },
+  { id: 3, name: 'Semanal', code: 'weekly', days_per_period: 7 },
+  { id: 4, name: 'Diario', code: 'daily', days_per_period: 1 },
+  { id: 5, name: 'Diario (solo días hábiles)', code: 'business_daily', days_per_period: 1 },
 ];
 
 const MOCK_LOAN_TYPES: LoanType[] = [
-  { id: 1, name: 'Personal' },
-  { id: 2, name: 'Hipotecario' },
-  { id: 3, name: 'Vehículo' },
-  { id: 4, name: 'Microcrédito' },
+  { id: 1, name: 'Personal', code: 'PERSONAL', category: 'formal', min_amount: 5000, max_amount: 500000, default_interest: 12, default_term: 12, requires_guarantor: false, requires_collateral: false },
+  { id: 2, name: 'Hipotecario', code: 'MORTGAGE', category: 'formal', min_amount: 500000, max_amount: 5000000, default_interest: 8, default_term: 180, requires_guarantor: false, requires_collateral: true },
+  { id: 3, name: 'Vehículo', code: 'AUTO', category: 'formal', min_amount: 100000, max_amount: 2000000, default_interest: 10, default_term: 60, requires_guarantor: false, requires_collateral: true },
+  { id: 4, name: 'Préstamo Rápido', code: 'QUICK', category: 'informal', min_amount: 1000, max_amount: 50000, default_interest: 20, default_term: 30, requires_guarantor: true, requires_collateral: false },
+  { id: 5, name: 'Microcrédito', code: 'MICRO', category: 'informal', min_amount: 500, max_amount: 25000, default_interest: 15, default_term: 12, requires_guarantor: false, requires_collateral: false },
+  { id: 6, name: 'San Tradicional', code: 'SAN_TRAD', category: 'san', min_amount: 1000, max_amount: 100000, default_interest: 20, default_term: 30, requires_guarantor: true, requires_collateral: false },
+  { id: 7, name: 'San Express', code: 'SAN_EXPRESS', category: 'san', min_amount: 500, max_amount: 25000, default_interest: 25, default_term: 15, requires_guarantor: false, requires_collateral: false },
+  { id: 8, name: 'San VIP', code: 'SAN_VIP', category: 'san', min_amount: 25000, max_amount: 200000, default_interest: 15, default_term: 60, requires_guarantor: true, requires_collateral: true },
+];
+
+const MOCK_CASH_BOXES: CashBox[] = [
+  { id: 1, name: 'Caja Principal', balance: 150000 },
+  { id: 2, name: 'Caja Secundaria', balance: 50000 },
+  { id: 3, name: 'Caja de Préstamos', balance: 200000 },
+];
+
+const MOCK_PAYMENT_METHODS: PaymentMethod[] = [
+  { id: 1, name: 'Efectivo', code: 'cash' },
+  { id: 2, name: 'Transferencia', code: 'transfer' },
+  { id: 3, name: 'Cheque', code: 'check' },
+  { id: 4, name: 'Depósito', code: 'deposit' },
 ];
 
 const MOCK_GUARANTEE_TYPES: GuaranteeType[] = [
-  { id: 1, name: 'Prendaria' },
-  { id: 2, name: 'Hipotecaria' },
-  { id: 3, name: 'Personal' },
-  { id: 4, name: 'Aval' },
+  { id: 1, name: 'Prendaria', code: 'pledge' },
+  { id: 2, name: 'Hipotecaria', code: 'mortgage' },
+  { id: 3, name: 'Personal', code: 'personal' },
+  { id: 4, name: 'Aval', code: 'guarantor' },
+  { id: 5, name: 'Electrodoméstico', code: 'appliance' },
+  { id: 6, name: 'Vehículo', code: 'vehicle' },
+  { id: 7, name: 'Joyas', code: 'jewelry' },
 ];
 
-// Componentes estilizados
-const Card = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
-  <View className={`bg-white rounded-2xl shadow-lg border border-gray-100 ${className}`}>
-    {children}
-  </View>
+// ============================================================
+// HELPERS
+// ============================================================
+
+const getCategoryColors = (category?: string) => {
+  switch (category) {
+    case 'san': return { primary: COLORS.green, light: COLORS.greenLight, mid: COLORS.greenMid, gradient: [COLORS.green, COLORS.greenMid] as [string, string] };
+    case 'informal': return { primary: COLORS.orange, light: COLORS.orangeLight, mid: COLORS.orangeMid, gradient: [COLORS.orange, COLORS.orangeMid] as [string, string] };
+    case 'formal': return { primary: COLORS.indigo, light: COLORS.indigoLight, mid: COLORS.violet, gradient: [COLORS.indigo, COLORS.violet] as [string, string] };
+    default: return { primary: COLORS.indigo, light: COLORS.indigoLight, mid: COLORS.violet, gradient: [COLORS.indigo, COLORS.violet] as [string, string] };
+  }
+};
+
+const getCategoryIcon = (category: string) => {
+  switch (category) {
+    case 'formal': return 'bank';
+    case 'informal': return 'hand-coin';
+    case 'san': return 'calendar-clock';
+    case 'micro': return 'seed';
+    default: return 'cash';
+  }
+};
+
+// ============================================================
+// COMPONENTES UI
+// ============================================================
+
+const Card = ({ children, style }: { children: React.ReactNode; style?: any }) => (
+  <View style={[styles.card, style]}>{children}</View>
 );
 
-const GradientButton = ({ 
-  onPress, 
-  children, 
+const SectionTitle = ({ children }: { children: React.ReactNode }) => (
+  <Text style={styles.sectionTitle}>{children}</Text>
+);
+
+const GradientButton = ({
+  onPress,
+  children,
   loading = false,
   variant = 'primary',
-  disabled = false 
-}: { 
-  onPress: () => void; 
+  disabled = false,
+  icon,
+  colors,
+}: {
+  onPress: () => void;
   children: React.ReactNode;
   loading?: boolean;
-  variant?: 'primary' | 'secondary' | 'outline';
+  variant?: 'primary' | 'secondary' | 'outline' | 'danger' | 'success';
   disabled?: boolean;
+  icon?: string;
+  colors?: [string, string];
 }) => {
-  const getGradientColors = () => {
-    if (disabled) return ['#9CA3AF', '#6B7280'];
-    if (variant === 'primary') return ['#4F46E5', '#7C3AED'];
-    if (variant === 'secondary') return ['#6B7280', '#4B5563'];
-    return ['transparent', 'transparent'];
+  const getColors = (): [string, string] => {
+    if (colors) return colors;
+    if (disabled) return [COLORS.gray300, COLORS.gray400];
+    if (variant === 'primary') return [COLORS.indigo, COLORS.violet];
+    if (variant === 'success') return [COLORS.green, COLORS.greenMid];
+    if (variant === 'danger') return [COLORS.red, '#DC2626'];
+    if (variant === 'secondary') return [COLORS.gray600, COLORS.gray700];
+    return [COLORS.indigo, COLORS.violet];
   };
+
+  if (variant === 'outline') {
+    return (
+      <TouchableOpacity
+        onPress={onPress}
+        disabled={loading || disabled}
+        style={[styles.outlineButton, disabled && { opacity: 0.5 }]}
+        activeOpacity={0.75}
+      >
+        {loading ? (
+          <ActivityIndicator color={COLORS.indigo} />
+        ) : (
+          <View style={styles.buttonInner}>
+            {icon && <Icon name={icon} size={18} color={COLORS.indigo} style={{ marginRight: 6 }} />}
+            <Text style={styles.outlineButtonText}>{children}</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  }
 
   return (
     <TouchableOpacity
       onPress={onPress}
       disabled={loading || disabled}
-      className={`rounded-xl overflow-hidden ${disabled ? 'opacity-50' : ''}`}
+      style={[styles.buttonWrapper, disabled && { opacity: 0.5 }]}
       activeOpacity={0.8}
     >
-      <LinearGradient
-        colors={getGradientColors()}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        className={`px-6 py-4 ${variant === 'outline' ? 'bg-transparent border-2 border-indigo-600' : ''}`}
-      >
+      <LinearGradient colors={getColors()} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.gradientButton}>
         {loading ? (
-          <ActivityIndicator color="white" />
+          <ActivityIndicator color={COLORS.white} />
         ) : (
-          <Text className={`text-center font-semibold text-base ${variant === 'outline' ? 'text-indigo-600' : 'text-white'}`}>
-            {children}
-          </Text>
+          <View style={styles.buttonInner}>
+            {icon && <Icon name={icon} size={18} color={COLORS.white} style={{ marginRight: 6 }} />}
+            <Text style={styles.buttonText}>{children}</Text>
+          </View>
         )}
       </LinearGradient>
     </TouchableOpacity>
   );
 };
 
-const InputField = ({ 
-  label, 
-  value, 
-  onChangeText, 
-  placeholder, 
+const InputField = ({
+  label,
+  value,
+  onChangeText,
+  placeholder,
   keyboardType = 'default',
   error,
   required = false,
@@ -191,7 +362,8 @@ const InputField = ({
   editable = true,
   multiline = false,
   numberOfLines = 1,
-}: { 
+  helper,
+}: {
   label: string;
   value: string;
   onChangeText: (text: string) => void;
@@ -204,18 +376,19 @@ const InputField = ({
   editable?: boolean;
   multiline?: boolean;
   numberOfLines?: number;
+  helper?: string;
 }) => (
-  <View className="mb-4">
-    <View className="flex-row items-center mb-2">
-      <Text className="text-gray-700 font-medium text-sm">{label}</Text>
-      {required && <Text className="text-red-500 ml-1">*</Text>}
+  <View style={styles.fieldContainer}>
+    <View style={styles.labelRow}>
+      <Text style={styles.label}>{label}</Text>
+      {required && <Text style={styles.required}> *</Text>}
     </View>
-    <View className={`flex-row items-center bg-gray-50 rounded-xl border ${error ? 'border-red-500' : 'border-gray-200'} ${!editable ? 'bg-gray-100' : ''}`}>
-      {prefix && (
-        <View className="pl-4">
-          <Text className="text-gray-500 text-base">{prefix}</Text>
-        </View>
-      )}
+    <View style={[
+      styles.inputWrapper,
+      error ? styles.inputError : styles.inputNormal,
+      !editable && styles.inputDisabled,
+    ]}>
+      {prefix && <Text style={styles.inputAffix}>{prefix}</Text>}
       <TextInput
         value={value}
         onChangeText={onChangeText}
@@ -224,126 +397,188 @@ const InputField = ({
         editable={editable}
         multiline={multiline}
         numberOfLines={multiline ? numberOfLines : 1}
-        className={`flex-1 px-4 py-3 text-gray-800 text-base ${multiline ? 'min-h-[100px]' : ''}`}
-        placeholderTextColor="#9CA3AF"
+        style={[styles.textInput, multiline && { minHeight: 80, textAlignVertical: 'top' }]}
+        placeholderTextColor={COLORS.gray400}
       />
-      {suffix && (
-        <View className="pr-4">
-          <Text className="text-gray-500 text-base">{suffix}</Text>
-        </View>
-      )}
+      {suffix && <Text style={styles.inputAffix}>{suffix}</Text>}
     </View>
-    {error && (
-      <Text className="text-red-500 text-xs mt-1">{error}</Text>
+    {(error || helper) && (
+      <Text style={[styles.fieldHelper, error ? styles.fieldError : styles.fieldHelperText]}>
+        {error || helper}
+      </Text>
     )}
   </View>
 );
 
-const SelectField = ({ 
-  label, 
-  value, 
-  onValueChange, 
-  items, 
+const SelectField = ({
+  label,
+  value,
+  onValueChange,
+  items,
   error,
-  required = false 
-}: { 
+  required = false,
+  helper,
+}: {
   label: string;
   value: string;
   onValueChange: (value: string) => void;
   items: { label: string; value: string }[];
   error?: string;
   required?: boolean;
+  helper?: string;
 }) => (
-  <View className="mb-4">
-    <View className="flex-row items-center mb-2">
-      <Text className="text-gray-700 font-medium text-sm">{label}</Text>
-      {required && <Text className="text-red-500 ml-1">*</Text>}
+  <View style={styles.fieldContainer}>
+    <View style={styles.labelRow}>
+      <Text style={styles.label}>{label}</Text>
+      {required && <Text style={styles.required}> *</Text>}
     </View>
-    <View className={`bg-gray-50 rounded-xl border ${error ? 'border-red-500' : 'border-gray-200'}`}>
-      <Picker
-        selectedValue={value}
-        onValueChange={onValueChange}
-        style={{ height: 50 }}
-      >
-        <Picker.Item label={`Seleccione ${label.toLowerCase()}`} value="" />
+    <View style={[styles.pickerWrapper, error ? styles.inputError : styles.inputNormal]}>
+      <Picker selectedValue={value} onValueChange={onValueChange} style={styles.picker}>
+        <Picker.Item label={`Seleccione ${label.toLowerCase()}`} value="" color={COLORS.gray400} />
         {items.map((item) => (
           <Picker.Item key={item.value} label={item.label} value={item.value} />
         ))}
       </Picker>
     </View>
-    {error && (
-      <Text className="text-red-500 text-xs mt-1">{error}</Text>
+    {(error || helper) && (
+      <Text style={[styles.fieldHelper, error ? styles.fieldError : styles.fieldHelperText]}>
+        {error || helper}
+      </Text>
     )}
   </View>
 );
 
-const StatCard = ({ 
-  title, 
-  value, 
-  icon, 
-  color,
-  subtitle 
-}: { 
+const Badge = ({ text, color, bg }: { text: string; color: string; bg: string }) => (
+  <View style={[styles.badge, { backgroundColor: bg }]}>
+    <Text style={[styles.badgeText, { color }]}>{text}</Text>
+  </View>
+);
+
+const StatCard = ({
+  title,
+  value,
+  icon,
+  iconColor,
+  iconBg,
+  subtitle,
+}: {
   title: string;
   value: string;
   icon: string;
-  color: string;
+  iconColor: string;
+  iconBg: string;
   subtitle?: string;
 }) => (
-  <Card className="p-4 flex-1">
-    <View className="flex-row items-center justify-between mb-2">
-      <View className={`w-10 h-10 rounded-full bg-${color}-100 items-center justify-center`}>
-        <Icon name={icon} size={20} color={`#${color === 'indigo' ? '4F46E5' : color === 'blue' ? '3B82F6' : color === 'green' ? '10B981' : color === 'red' ? 'EF4444' : color === 'purple' ? '8B5CF6' : 'F59E0B'}`} />
-      </View>
+  <View style={styles.statCard}>
+    <View style={[styles.statIcon, { backgroundColor: iconBg }]}>
+      <Icon name={icon} size={18} color={iconColor} />
     </View>
-    <Text className="text-gray-600 text-xs mb-1">{title}</Text>
-    <Text className="text-xl font-bold text-gray-800">{value}</Text>
-    {subtitle && (
-      <Text className="text-gray-500 text-xs mt-1">{subtitle}</Text>
-    )}
-  </Card>
-);
-
-const AmortizationRow = ({ item }: { item: AmortizationDetail }) => (
-  <View className="flex-row items-center py-3 border-b border-gray-100">
-    <View className="w-12">
-      <Text className="text-gray-600 font-medium">{item.month}</Text>
-    </View>
-    <View className="w-20">
-      <Text className="text-gray-600 text-sm">{item.payment_date || '-'}</Text>
-    </View>
-    <View className="flex-1">
-      <Text className="text-gray-800 font-medium text-right">${item.payment.toFixed(2)}</Text>
-    </View>
-    <View className="w-20">
-      <Text className="text-gray-600 text-right">${item.principal.toFixed(2)}</Text>
-    </View>
-    <View className="w-20">
-      <Text className="text-gray-600 text-right">${item.interest.toFixed(2)}</Text>
-    </View>
-    <View className="w-24">
-      <Text className="text-gray-800 font-medium text-right">${item.remaining.toFixed(2)}</Text>
-    </View>
+    <Text style={styles.statTitle}>{title}</Text>
+    <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
+    {subtitle && <Text style={styles.statSubtitle}>{subtitle}</Text>}
   </View>
 );
 
-// Componente principal
+const AmortizationRow = ({ item, isEven }: { item: AmortizationDetail; isEven: boolean }) => (
+  <View style={[styles.amortRow, isEven && styles.amortRowEven]}>
+    <Text style={[styles.amortCell, { width: 32, color: COLORS.indigo, fontWeight: '600' }]}>{item.period}</Text>
+    <Text style={[styles.amortCell, { width: 88, fontSize: 11 }]}>{item.payment_date || '-'}</Text>
+    <Text style={[styles.amortCell, { flex: 1, textAlign: 'right', fontWeight: '600', color: COLORS.gray800 }]}>${item.payment.toFixed(2)}</Text>
+    <Text style={[styles.amortCell, { width: 72, textAlign: 'right' }]}>${item.principal.toFixed(2)}</Text>
+    <Text style={[styles.amortCell, { width: 72, textAlign: 'right', color: COLORS.red }]}>${item.interest.toFixed(2)}</Text>
+    <Text style={[styles.amortCell, { width: 80, textAlign: 'right', fontWeight: '600', color: COLORS.gray700 }]}>${item.remaining.toFixed(2)}</Text>
+  </View>
+);
+
+const LoanTypeCard = ({
+  loanType,
+  isSelected,
+  onSelect,
+}: {
+  loanType: LoanType;
+  isSelected: boolean;
+  onSelect: () => void;
+}) => {
+  const cat = getCategoryColors(loanType.category);
+  return (
+    <TouchableOpacity
+      onPress={onSelect}
+      style={[
+        styles.loanTypeCard,
+        isSelected ? { borderColor: cat.primary, backgroundColor: cat.light } : { borderColor: COLORS.gray200, backgroundColor: COLORS.white },
+      ]}
+      activeOpacity={0.75}
+    >
+      <View style={styles.loanTypeHeader}>
+        <View style={[styles.loanTypeIcon, { backgroundColor: isSelected ? cat.light : COLORS.gray100 }]}>
+          <Icon name={getCategoryIcon(loanType.category)} size={22} color={isSelected ? cat.primary : COLORS.gray500} />
+        </View>
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <Text style={[styles.loanTypeName, isSelected && { color: cat.primary }]}>{loanType.name}</Text>
+          <Text style={styles.loanTypeRange}>
+            RD${loanType.min_amount.toLocaleString()} – RD${loanType.max_amount.toLocaleString()}
+          </Text>
+        </View>
+        {isSelected && <Icon name="check-circle" size={22} color={cat.primary} />}
+      </View>
+      <View style={styles.loanTypeTags}>
+        <View style={styles.tag}>
+          <Text style={styles.tagText}>Interés: {loanType.default_interest}%</Text>
+        </View>
+        <View style={styles.tag}>
+          <Text style={styles.tagText}>Plazo: {loanType.default_term} períodos</Text>
+        </View>
+        {loanType.requires_guarantor && (
+          <View style={[styles.tag, { backgroundColor: COLORS.amberLight }]}>
+            <Text style={[styles.tagText, { color: COLORS.amber }]}>Requiere codeudor</Text>
+          </View>
+        )}
+        {loanType.requires_collateral && (
+          <View style={[styles.tag, { backgroundColor: COLORS.blueLight }]}>
+            <Text style={[styles.tagText, { color: COLORS.blue }]}>Requiere garantía</Text>
+          </View>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+// ============================================================
+// PANTALLA PRINCIPAL
+// ============================================================
+
 export default function LoanCreateScreen() {
-  // Estados
   const [activeTab, setActiveTab] = useState('loan');
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [calculationMode, setCalculationMode] = useState<'standard' | 'fixedPayment' | 'profitPercentage'>('profitPercentage');
-  
-  // Datos del formulario
+  const [calculationMode, setCalculationMode] = useState<'standard' | 'fixedPayment' | 'profitPercentage' | 'san'>('san');
+  const [showLoanTypeSelector, setShowLoanTypeSelector] = useState(false);
+
+  const [sanConfig, setSanConfig] = useState<SanLoanConfig>({
+    daily_payment: 0,
+    term_days: 30,
+    interest_type: 'percentage',
+    interest_value: 20,
+    include_weekends: true,
+    first_payment_delay: 0,
+  });
+
+  const [informalConfig, setInformalConfig] = useState<InformalLoanConfig>({
+    payment_frequency: 'daily',
+    interest_calculation: 'flat',
+    grace_period: 0,
+    late_fee_percentage: 5,
+    early_payment_discount: 0,
+  });
+
   const [formData, setFormData] = useState({
     customer: '',
-    loan_type: '1',
-    amortization: '1',
-    modality: '1',
-    loanAmount: '10000',
-    installments: '12',
-    interest: '12',
+    loan_type: '6',
+    amortization: '5',
+    modality: '4',
+    loanAmount: '5000',
+    installments: '30',
+    interest: '20',
     installmentAmount: '',
     profitPercentage: '20',
     date: new Date().toISOString().split('T')[0],
@@ -365,28 +600,29 @@ export default function LoanCreateScreen() {
     guarantee_description: '',
     guarantee_value: '',
     guarantee_file_number: '',
-    guarantee_notes: ''
+    guarantee_notes: '',
+    san_daily_payment: '',
+    san_include_weekends: true,
+    san_first_payment_tomorrow: true,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [selectedLoanType, setSelectedLoanType] = useState<LoanType | null>(null);
   const [amortizationDetails, setAmortizationDetails] = useState<AmortizationDetail[]>([]);
-  const [monthlyPayment, setMonthlyPayment] = useState(0);
+  const [periodicPayment, setPeriodicPayment] = useState(0);
   const [totalInterest, setTotalInterest] = useState(0);
   const [totalPayment, setTotalPayment] = useState(0);
   const [showAmortizationModal, setShowAmortizationModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-  // Datos mockeados
   const customers = MOCK_CUSTOMERS;
-  const amortizations = MOCK_AMORTIZATIONS;
   const paymentModes = MOCK_PAYMENT_MODES;
   const cashBoxes = MOCK_CASH_BOXES;
   const paymentMethods = MOCK_PAYMENT_METHODS;
   const loanTypes = MOCK_LOAN_TYPES;
   const guaranteeTypes = MOCK_GUARANTEE_TYPES;
 
-  // Efectos
   useEffect(() => {
     if (formData.customer) {
       const customer = customers.find(c => c.id.toString() === formData.customer);
@@ -395,809 +631,923 @@ export default function LoanCreateScreen() {
   }, [formData.customer]);
 
   useEffect(() => {
+    if (formData.loan_type) {
+      const loanType = loanTypes.find(t => t.id.toString() === formData.loan_type);
+      setSelectedLoanType(loanType || null);
+      if (loanType) {
+        setFormData(prev => ({
+          ...prev,
+          interest: loanType.default_interest.toString(),
+          installments: loanType.default_term.toString(),
+        }));
+        if (loanType.category === 'san') {
+          setCalculationMode('san');
+          setFormData(prev => ({ ...prev, amortization: '5', modality: '4' }));
+        } else if (loanType.category === 'informal') {
+          setCalculationMode('profitPercentage');
+          setFormData(prev => ({ ...prev, amortization: '4' }));
+        } else {
+          setCalculationMode('standard');
+          setFormData(prev => ({ ...prev, amortization: '1' }));
+        }
+      }
+    }
+  }, [formData.loan_type]);
+
+  useEffect(() => {
     calculateAmortization();
   }, [
-    formData.loanAmount,
-    formData.interest,
-    formData.installments,
-    formData.amortization,
-    formData.modality,
-    formData.firstPaymentDate,
-    formData.profitPercentage,
-    calculationMode
+    formData.loanAmount, formData.interest, formData.installments,
+    formData.amortization, formData.modality, formData.firstPaymentDate,
+    formData.profitPercentage, calculationMode, sanConfig, informalConfig,
   ]);
 
-  // Funciones de cálculo
-  const findMonthlyRate = (principal: number, totalProfit: number, periods: number) => {
-    const totalPaymentAmount = principal + totalProfit;
-    const targetPayment = totalPaymentAmount / periods;
-    let rate = (totalProfit / principal / periods) * 2;
-    const precision = 1e-8;
-    const maxIterations = 100;
-    let iteration = 0;
-    let error = 10;
-
-    while (error > precision && iteration < maxIterations) {
-      const numerator = principal * rate * Math.pow(1 + rate, periods);
-      const denominator = Math.pow(1 + rate, periods) - 1;
-      const f = numerator / denominator - targetPayment;
-
-      const dfNumerator = principal * Math.pow(1 + rate, periods - 1) *
-                        (Math.pow(1 + rate, periods + 1) - (1 + rate + periods * rate));
-      const dfDenominator = Math.pow(Math.pow(1 + rate, periods) - 1, 2);
-      const df = dfNumerator / dfDenominator;
-
-      const newRate = rate - f / df;
-      error = Math.abs(newRate - rate);
-      rate = newRate;
-      iteration++;
-    }
-
-    return rate;
-  };
-
-  const calculateInterestFromProfit = (profitPercentage: string) => {
-    if (!profitPercentage || isNaN(parseFloat(profitPercentage))) return;
-
+  const calculateSanLoan = () => {
     const amount = parseFloat(formData.loanAmount) || 0;
-    const totalInstallments = parseFloat(formData.installments) || 0;
-    const profit = amount * (parseFloat(profitPercentage) / 100);
+    const termDays = parseInt(formData.installments) || 30;
+    const interestValue = parseFloat(formData.interest) || 20;
+    if (amount <= 0 || termDays <= 0) { setAmortizationDetails([]); return; }
 
-    const monthlyRate = findMonthlyRate(amount, profit, totalInstallments);
-    const annualRate = monthlyRate * 12 * 100;
+    const totalInterestAmount = amount * (interestValue / 100);
+    const totalToPay = amount + totalInterestAmount;
+    const dailyPayment = totalToPay / termDays;
 
-    setFormData(prev => ({ ...prev, interest: annualRate.toFixed(2) }));
+    setPeriodicPayment(dailyPayment);
+    setTotalInterest(totalInterestAmount);
+    setTotalPayment(totalToPay);
+
+    const table: AmortizationDetail[] = [];
+    let remaining = totalToPay;
+    const dailyPrincipal = amount / termDays;
+    const dailyInterest = totalInterestAmount / termDays;
+    const startDate = new Date(formData.firstPaymentDate);
+
+    for (let i = 1; i <= termDays; i++) {
+      const paymentDate = new Date(startDate);
+      paymentDate.setDate(startDate.getDate() + i - 1);
+      const isWeekend = paymentDate.getDay() === 0 || paymentDate.getDay() === 6;
+      let principalPayment = dailyPrincipal;
+      let interestPayment = dailyInterest;
+      if (i === termDays) {
+        principalPayment = amount - dailyPrincipal * (termDays - 1);
+        interestPayment = totalInterestAmount - dailyInterest * (termDays - 1);
+      }
+      remaining = Math.max(0, remaining - dailyPayment);
+      table.push({ period: i, payment: dailyPayment, principal: principalPayment, interest: interestPayment, remaining, status: 'Pendiente', payment_date: paymentDate.toISOString().split('T')[0], is_weekend: isWeekend });
+    }
+    setAmortizationDetails(table);
   };
 
-  const calculateAmortization = () => {
+  const calculateInformalLoan = () => {
+    const amount = parseFloat(formData.loanAmount) || 0;
+    const periods = parseInt(formData.installments) || 0;
+    const profitPercentage = parseFloat(formData.profitPercentage) || 20;
+    if (amount <= 0 || periods <= 0) { setAmortizationDetails([]); return; }
+
+    const totalProfit = amount * (profitPercentage / 100);
+    const totalToPay = amount + totalProfit;
+    const paymentPerPeriod = totalToPay / periods;
+
+    setPeriodicPayment(paymentPerPeriod);
+    setTotalInterest(totalProfit);
+    setTotalPayment(totalToPay);
+
+    const table: AmortizationDetail[] = [];
+    let remaining = totalToPay;
+    const principalPerPeriod = amount / periods;
+    const interestPerPeriod = totalProfit / periods;
+    const startDate = new Date(formData.firstPaymentDate);
+    const daysPerPeriod = paymentModes.find(m => m.id.toString() === formData.modality)?.days_per_period || 30;
+
+    for (let i = 1; i <= periods; i++) {
+      const paymentDate = new Date(startDate);
+      paymentDate.setDate(startDate.getDate() + (i - 1) * daysPerPeriod);
+      let principalPayment = i === periods ? amount - principalPerPeriod * (periods - 1) : principalPerPeriod;
+      let interestPayment = i === periods ? totalProfit - interestPerPeriod * (periods - 1) : interestPerPeriod;
+      remaining = Math.max(0, remaining - paymentPerPeriod);
+      table.push({ period: i, payment: paymentPerPeriod, principal: principalPayment, interest: interestPayment, remaining, status: 'Pendiente', payment_date: paymentDate.toISOString().split('T')[0] });
+    }
+    setAmortizationDetails(table);
+  };
+
+  const calculateStandardLoan = () => {
     const amount = parseFloat(formData.loanAmount) || 0;
     const interestRate = parseFloat(formData.interest) || 0;
     const installments = parseInt(formData.installments) || 0;
-    
-    if (amount <= 0 || installments <= 0) {
-      setAmortizationDetails([]);
-      return;
-    }
+    if (amount <= 0 || installments <= 0) { setAmortizationDetails([]); return; }
 
-    let payment = 0;
+    const monthlyRate = interestRate / 100 / 12;
     let balance = amount;
     let totalInterestPaid = 0;
     const table: AmortizationDetail[] = [];
+    const payment = monthlyRate === 0 ? amount / installments : (amount * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -installments));
+    const startDate = new Date(formData.firstPaymentDate);
+    const daysPerPeriod = paymentModes.find(m => m.id.toString() === formData.modality)?.days_per_period || 30;
 
-    if (calculationMode === 'profitPercentage') {
-      const profitPercentage = parseFloat(formData.profitPercentage) || 0;
-      const totalProfit = amount * (profitPercentage / 100);
-      totalInterestPaid = totalProfit;
-      payment = (amount + totalProfit) / installments;
-
-      const principalPerPayment = amount / installments;
-      const interestPerPayment = totalProfit / installments;
-
-      for (let i = 1; i <= installments; i++) {
-        let principalPayment = principalPerPayment;
-        let interestPayment = interestPerPayment;
-        let currentPayment = payment;
-
-        if (i === installments) {
-          const totalPrincipalPaid = principalPerPayment * (installments - 1);
-          principalPayment = amount - totalPrincipalPaid;
-          const totalInterestPaidSoFar = interestPerPayment * (installments - 1);
-          interestPayment = totalProfit - totalInterestPaidSoFar;
-          currentPayment = principalPayment + interestPayment;
-        }
-
-        balance -= principalPayment;
-        balance = Math.max(0, balance);
-
-        const paymentDate = new Date(formData.firstPaymentDate);
-        paymentDate.setMonth(paymentDate.getMonth() + i - 1);
-
-        table.push({
-          month: i,
-          payment: currentPayment,
-          principal: principalPayment,
-          interest: interestPayment,
-          remaining: balance,
-          status: 'Pendiente',
-          payment_date: paymentDate.toISOString().split('T')[0]
-        });
-      }
-    } else {
-      const monthlyRate = interestRate / 100 / 12;
-      
-      if (monthlyRate === 0) {
-        payment = amount / installments;
-      } else {
-        payment = (amount * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -installments));
-      }
-
-      for (let i = 1; i <= installments; i++) {
-        const interestPayment = balance * monthlyRate;
-        let principalPayment = payment - interestPayment;
-        
-        if (i === installments) {
-          principalPayment = balance;
-        }
-        
-        balance -= principalPayment;
-        balance = Math.max(0, balance);
-        totalInterestPaid += interestPayment;
-
-        const paymentDate = new Date(formData.firstPaymentDate);
-        paymentDate.setMonth(paymentDate.getMonth() + i - 1);
-
-        table.push({
-          month: i,
-          payment: payment,
-          principal: principalPayment,
-          interest: interestPayment,
-          remaining: balance,
-          status: 'Pendiente',
-          payment_date: paymentDate.toISOString().split('T')[0]
-        });
-      }
+    for (let i = 1; i <= installments; i++) {
+      const paymentDate = new Date(startDate);
+      paymentDate.setDate(startDate.getDate() + (i - 1) * daysPerPeriod);
+      const interestPayment = balance * monthlyRate;
+      const principalPayment = i === installments ? balance : payment - interestPayment;
+      balance = Math.max(0, balance - principalPayment);
+      totalInterestPaid += interestPayment;
+      table.push({ period: i, payment, principal: principalPayment, interest: interestPayment, remaining: balance, status: 'Pendiente', payment_date: paymentDate.toISOString().split('T')[0] });
     }
 
     setAmortizationDetails(table);
-    setMonthlyPayment(payment);
+    setPeriodicPayment(payment);
     setTotalInterest(totalInterestPaid);
     setTotalPayment(amount + totalInterestPaid);
   };
 
-  // Validación
+  const calculateAmortization = () => {
+    if (calculationMode === 'san' || selectedLoanType?.category === 'san') calculateSanLoan();
+    else if (calculationMode === 'profitPercentage' || selectedLoanType?.category === 'informal') calculateInformalLoan();
+    else calculateStandardLoan();
+  };
+
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-
     if (!formData.customer) newErrors.customer = 'Seleccione un cliente';
-    if (!formData.loanAmount || parseFloat(formData.loanAmount) <= 0) {
-      newErrors.loanAmount = 'Monto inválido';
-    }
-    if (!formData.installments || parseInt(formData.installments) <= 0) {
-      newErrors.installments = 'Número de cuotas inválido';
-    }
-
+    if (!formData.loanAmount || parseFloat(formData.loanAmount) <= 0) newErrors.loanAmount = 'Monto inválido';
+    if (!formData.installments || parseInt(formData.installments) <= 0) newErrors.installments = 'Número de períodos inválido';
+    if (selectedLoanType?.requires_guarantor && !formData.nameCodebtor) newErrors.nameCodebtor = 'Se requiere codeudor para este tipo de préstamo';
+    if (selectedLoanType?.requires_collateral && !formData.guarantee_type) newErrors.guarantee_type = 'Se requiere garantía para este tipo de préstamo';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  // Handlers
   const handleSubmit = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
-    if (!validateForm()) {
-      Alert.alert('Error', 'Por favor complete todos los campos requeridos');
-      return;
-    }
-
+    if (!validateForm()) { Alert.alert('Error', 'Por favor complete todos los campos requeridos'); return; }
     setLoading(true);
-    
-    // Simular envío
-    setTimeout(() => {
-      setLoading(false);
-      setShowSuccessModal(true);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }, 2000);
+    setTimeout(() => { setLoading(false); setShowSuccessModal(true); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }, 2000);
   };
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    // Simular recarga
-    setTimeout(() => {
-      calculateAmortization();
-      setRefreshing(false);
-    }, 1000);
+    setTimeout(() => { calculateAmortization(); setRefreshing(false); }, 1000);
   };
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('es-DO', {
-      style: 'currency',
-      currency: 'DOP',
-      minimumFractionDigits: 2
-    }).format(value);
-  };
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat('es-DO', { style: 'currency', currency: 'DOP', minimumFractionDigits: 2 }).format(value);
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('es-ES', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-  };
-
-  // Datos para el gráfico
   const chartData = useMemo(() => {
-    if (amortizationDetails.length === 0) return { labels: [], datasets: [{ data: [] }] };
-    
-    const labels = amortizationDetails.slice(0, 12).map(d => d.month.toString());
-    const principalData = amortizationDetails.slice(0, 12).map(d => d.principal);
-    const interestData = amortizationDetails.slice(0, 12).map(d => d.interest);
-
+    if (amortizationDetails.length === 0) return { labels: [], datasets: [{ data: [0] }] };
+    const maxPeriods = Math.min(amortizationDetails.length, 20);
+    const slice = amortizationDetails.slice(0, maxPeriods);
     return {
-      labels,
+      labels: slice.map(d => d.period.toString()),
       datasets: [
-        {
-          data: principalData,
-          color: (opacity = 1) => `rgba(79, 70, 229, ${opacity})`,
-          strokeWidth: 2
-        },
-        {
-          data: interestData,
-          color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
-          strokeWidth: 2
-        }
+        { data: slice.map(d => d.principal), color: (o = 1) => `rgba(79, 70, 229, ${o})`, strokeWidth: 2 },
+        { data: slice.map(d => d.interest), color: (o = 1) => `rgba(239, 68, 68, ${o})`, strokeWidth: 2 },
       ],
-      legend: ['Capital', 'Interés']
+      legend: ['Capital', 'Interés'],
     };
   }, [amortizationDetails]);
 
-  // Renderizado
+  const getPaymentPeriodLabel = () => paymentModes.find(m => m.id.toString() === formData.modality)?.name || 'Período';
+
+  const catColors = getCategoryColors(selectedLoanType?.category);
+  const catIcon = getCategoryIcon(selectedLoanType?.category || '');
+
+  // ============================================================
+  // RENDER
+  // ============================================================
+
   return (
-    <GestureHandlerRootView className="flex-1">
-      <SafeAreaView className="flex-1 bg-gray-50">
-        <StatusBar barStyle="dark-content" backgroundColor="#F9FAFB" />
-        
-        {/* Header */}
-        <LinearGradient
-          colors={['#4F46E5', '#7C3AED']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          className="px-5 pt-3 pb-5"
-        >
-          <View className="flex-row items-center justify-between">
-            <View className="flex-row items-center">
-              <Icon name="hand-coin" size={28} color="white" />
-              <View className="ml-3">
-                <Text className="text-white text-xl font-bold">Nuevo Préstamo</Text>
-                <Text className="text-white text-sm opacity-90">Complete los datos del préstamo</Text>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="light-content" backgroundColor={catColors.primary} />
+
+        {/* ── Header ── */}
+        <LinearGradient colors={catColors.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
+          <View style={styles.headerContent}>
+            <View style={styles.headerLeft}>
+              <View style={styles.headerIconBg}>
+                <Icon name={catIcon} size={24} color={COLORS.white} />
+              </View>
+              <View style={{ marginLeft: 12 }}>
+                <Text style={styles.headerTitle}>{selectedLoanType?.name || 'Nuevo Préstamo'}</Text>
+                <Text style={styles.headerSubtitle}>
+                  {selectedLoanType?.category === 'san' ? 'Préstamo tipo San · Pagos diarios'
+                    : selectedLoanType?.category === 'informal' ? 'Préstamo informal · Interés plano'
+                    : 'Complete los datos del préstamo'}
+                </Text>
               </View>
             </View>
-            <TouchableOpacity onPress={() => {}} className="w-10 h-10 rounded-full bg-white/20 items-center justify-center">
-              <Icon name="dots-vertical" size={24} color="white" />
+            <TouchableOpacity onPress={() => setShowLoanTypeSelector(true)} style={styles.headerSwapBtn} activeOpacity={0.75}>
+              <Icon name="swap-horizontal" size={22} color={COLORS.white} />
             </TouchableOpacity>
           </View>
         </LinearGradient>
 
-        {/* Tabs */}
-        <View className="flex-row bg-white mx-4 -mt-4 rounded-xl shadow-lg p-1">
+        {/* ── Tabs ── */}
+        <View style={styles.tabBar}>
           {[
             { id: 'loan', label: 'Préstamo', icon: 'cash-multiple' },
             { id: 'guarantor', label: 'Codeudor', icon: 'account-group' },
-            { id: 'warranty', label: 'Garantía', icon: 'shield-check' }
-          ].map((tab) => (
-            <TouchableOpacity
-              key={tab.id}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setActiveTab(tab.id);
-              }}
-              className={`flex-1 flex-row items-center justify-center py-3 rounded-lg ${activeTab === tab.id ? 'bg-indigo-100' : ''}`}
-            >
-              <Icon 
-                name={tab.icon} 
-                size={18} 
-                color={activeTab === tab.id ? '#4F46E5' : '#6B7280'} 
-              />
-              <Text className={`ml-2 font-medium ${activeTab === tab.id ? 'text-indigo-600' : 'text-gray-500'}`}>
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+            { id: 'warranty', label: 'Garantía', icon: 'shield-check' },
+          ].map((tab) => {
+            const isActive = activeTab === tab.id;
+            const showDot =
+              (tab.id === 'guarantor' && selectedLoanType?.requires_guarantor) ||
+              (tab.id === 'warranty' && selectedLoanType?.requires_collateral);
+            return (
+              <TouchableOpacity
+                key={tab.id}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setActiveTab(tab.id); }}
+                style={[styles.tab, isActive && { backgroundColor: catColors.light }]}
+                activeOpacity={0.75}
+              >
+                <Icon name={tab.icon} size={17} color={isActive ? catColors.primary : COLORS.gray400} />
+                <Text style={[styles.tabLabel, { color: isActive ? catColors.primary : COLORS.gray400 }]}>{tab.label}</Text>
+                {showDot && <View style={styles.tabDot} />}
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
-        <ScrollView 
-          className="flex-1 px-4 pt-4"
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-          }
+        {/* ── Scroll content ── */}
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={catColors.primary} />}
+          showsVerticalScrollIndicator={false}
         >
+
+          {/* ===== TAB: PRÉSTAMO ===== */}
           {activeTab === 'loan' && (
             <>
-              {/* Modo de cálculo */}
-              <Card className="p-4 mb-4">
-                <Text className="text-gray-800 font-semibold mb-3">Modo de Cálculo</Text>
-                <View className="flex-row gap-2">
-                  {[
-                    { id: 'standard', label: 'Estándar' },
-                    { id: 'fixedPayment', label: 'Pago Fijo' },
-                    { id: 'profitPercentage', label: 'Por Beneficio' }
-                  ].map((mode) => (
-                    <TouchableOpacity
-                      key={mode.id}
-                      onPress={() => setCalculationMode(mode.id as any)}
-                      className={`flex-1 py-3 rounded-lg border ${calculationMode === mode.id ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-gray-300'}`}
-                    >
-                      <Text className={`text-center font-medium ${calculationMode === mode.id ? 'text-white' : 'text-gray-700'}`}>
-                        {mode.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </Card>
+              {/* Tipo seleccionado */}
+              {selectedLoanType && (
+                <Card style={{ marginBottom: SPACING.md }}>
+                  <View style={styles.selectedLoanRow}>
+                    <View>
+                      <Text style={styles.selectedLoanLabel}>Tipo seleccionado</Text>
+                      <Text style={styles.selectedLoanName}>{selectedLoanType.name}</Text>
+                    </View>
+                    <Badge
+                      text={selectedLoanType.category === 'san' ? 'Tipo San' : selectedLoanType.category === 'informal' ? 'Informal' : 'Formal'}
+                      color={catColors.primary}
+                      bg={catColors.light}
+                    />
+                  </View>
+                </Card>
+              )}
 
               {/* Cliente */}
-              <Card className="p-4 mb-4">
-                <Text className="text-gray-800 font-semibold mb-3">Información del Cliente</Text>
+              <Card style={{ marginBottom: SPACING.md }}>
+                <SectionTitle>Información del Cliente</SectionTitle>
                 <SelectField
                   label="Cliente"
                   value={formData.customer}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, customer: value }))}
-                  items={customers.map(c => ({ label: `${c.first_name} ${c.last_name}`, value: c.id.toString() }))}
+                  onValueChange={(v) => setFormData(p => ({ ...p, customer: v }))}
+                  items={customers.map(c => ({ label: `${c.first_name} ${c.last_name}${c.is_vip ? ' ★ VIP' : ''}`, value: c.id.toString() }))}
                   error={errors.customer}
                   required
                 />
-
                 {selectedCustomer && (
-                  <View className="bg-gray-50 rounded-lg p-3 mt-2">
-                    <View className="flex-row items-center">
-                      <View className="w-10 h-10 rounded-full bg-indigo-100 items-center justify-center">
-                        <Icon name="account" size={20} color="#4F46E5" />
-                      </View>
-                      <View className="ml-3">
-                        <Text className="font-medium text-gray-800">
-                          {selectedCustomer.first_name} {selectedCustomer.last_name}
-                        </Text>
-                        {selectedCustomer.phone && (
-                          <Text className="text-gray-500 text-sm">{selectedCustomer.phone}</Text>
+                  <View style={styles.customerPreview}>
+                    <View style={styles.customerAvatar}>
+                      <Icon name="account" size={20} color={catColors.primary} />
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 10 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Text style={styles.customerName}>{selectedCustomer.first_name} {selectedCustomer.last_name}</Text>
+                        {selectedCustomer.is_vip && (
+                          <Badge text="VIP" color={COLORS.amber} bg={COLORS.amberLight} />
                         )}
                       </View>
+                      <Text style={styles.customerMeta}>{selectedCustomer.document_id} · Score: {selectedCustomer.credit_score}</Text>
                     </View>
                   </View>
                 )}
-
-                <SelectField
-                  label="Tipo de Préstamo"
-                  value={formData.loan_type}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, loan_type: value }))}
-                  items={loanTypes.map(t => ({ label: t.name, value: t.id.toString() }))}
-                  required
-                />
               </Card>
 
-              {/* Parámetros del préstamo */}
-              <Card className="p-4 mb-4">
-                <Text className="text-gray-800 font-semibold mb-3">Parámetros del Préstamo</Text>
+              {/* Config San */}
+              {selectedLoanType?.category === 'san' && (
+                <Card style={[{ marginBottom: SPACING.md }, styles.sanCard]}>
+                  <View style={styles.configCardHeader}>
+                    <Icon name="calendar-clock" size={18} color={COLORS.green} />
+                    <Text style={[styles.configCardTitle, { color: COLORS.green }]}>Configuración San</Text>
+                  </View>
+                  <View style={styles.infoBox}>
+                    <Text style={styles.infoBoxText}>Pagos diarios fijos con interés calculado sobre el capital inicial.</Text>
+                  </View>
+                  <View style={styles.switchRow}>
+                    <Text style={styles.switchLabel}>Incluir fines de semana</Text>
+                    <Switch value={formData.san_include_weekends} onValueChange={(v) => setFormData(p => ({ ...p, san_include_weekends: v }))} trackColor={{ false: COLORS.gray300, true: COLORS.greenMid }} thumbColor={COLORS.white} />
+                  </View>
+                  <View style={styles.switchRow}>
+                    <Text style={styles.switchLabel}>Primer pago mañana</Text>
+                    <Switch value={formData.san_first_payment_tomorrow} onValueChange={(v) => setFormData(p => ({ ...p, san_first_payment_tomorrow: v }))} trackColor={{ false: COLORS.gray300, true: COLORS.greenMid }} thumbColor={COLORS.white} />
+                  </View>
+                </Card>
+              )}
 
-                {calculationMode === 'profitPercentage' && (
-                  <>
-                    <InputField
-                      label="Porcentaje de beneficio deseado"
-                      value={formData.profitPercentage}
-                      onChangeText={(value) => {
-                        setFormData(prev => ({ ...prev, profitPercentage: value }));
-                        calculateInterestFromProfit(value);
-                      }}
-                      placeholder="Ej: 20"
-                      keyboardType="numeric"
-                      suffix="%"
-                      required
-                    />
-                    <View className="mb-4">
-                      <View className="flex-row justify-between mb-2">
-                        <Text className="text-gray-500 text-xs">0%</Text>
-                        <Text className="text-gray-500 text-xs">100%</Text>
-                      </View>
-                    </View>
-                  </>
-                )}
+              {/* Config Informal */}
+              {selectedLoanType?.category === 'informal' && (
+                <Card style={[{ marginBottom: SPACING.md }, styles.informalCard]}>
+                  <View style={styles.configCardHeader}>
+                    <Icon name="hand-coin" size={18} color={COLORS.orange} />
+                    <Text style={[styles.configCardTitle, { color: COLORS.orange }]}>Configuración Informal</Text>
+                  </View>
+                  <SelectField
+                    label="Frecuencia de pago"
+                    value={informalConfig.payment_frequency}
+                    onValueChange={(v) => setInformalConfig(p => ({ ...p, payment_frequency: v as any }))}
+                    items={[
+                      { label: 'Diario', value: 'daily' },
+                      { label: 'Semanal', value: 'weekly' },
+                      { label: 'Quincenal', value: 'biweekly' },
+                      { label: 'Mensual', value: 'monthly' },
+                    ]}
+                  />
+                  <InputField
+                    label="Porcentaje de beneficio"
+                    value={formData.profitPercentage}
+                    onChangeText={(v) => setFormData(p => ({ ...p, profitPercentage: v }))}
+                    placeholder="Ej: 20"
+                    keyboardType="numeric"
+                    suffix="%"
+                    helper="Porcentaje sobre el capital prestado"
+                    required
+                  />
+                </Card>
+              )}
 
+              {/* Parámetros */}
+              <Card style={{ marginBottom: SPACING.md }}>
+                <SectionTitle>Parámetros del Préstamo</SectionTitle>
                 <InputField
-                  label="Monto del préstamo"
+                  label={selectedLoanType?.category === 'san' ? 'Monto a prestar' : 'Monto del préstamo'}
                   value={formData.loanAmount}
-                  onChangeText={(value) => setFormData(prev => ({ ...prev, loanAmount: value }))}
-                  placeholder="Ej: 10000"
+                  onChangeText={(v) => setFormData(p => ({ ...p, loanAmount: v }))}
+                  placeholder={`Ej: ${selectedLoanType?.min_amount || 5000}`}
                   keyboardType="numeric"
-                  prefix="$"
+                  prefix="RD$"
                   error={errors.loanAmount}
                   required
+                  helper={selectedLoanType ? `Mín: RD$${selectedLoanType.min_amount} – Máx: RD$${selectedLoanType.max_amount}` : ''}
                 />
-
                 <InputField
-                  label="Plazo (cuotas)"
+                  label={selectedLoanType?.category === 'san' ? 'Plazo (días)' : 'Plazo (cuotas)'}
                   value={formData.installments}
-                  onChangeText={(value) => setFormData(prev => ({ ...prev, installments: value }))}
-                  placeholder="Ej: 12"
+                  onChangeText={(v) => setFormData(p => ({ ...p, installments: v }))}
+                  placeholder={selectedLoanType?.category === 'san' ? 'Ej: 30' : 'Ej: 12'}
                   keyboardType="numeric"
-                  suffix="meses"
                   error={errors.installments}
                   required
                 />
-
-                {calculationMode !== 'profitPercentage' && (
-                  <InputField
-                    label="Tasa de interés anual"
-                    value={formData.interest}
-                    onChangeText={(value) => setFormData(prev => ({ ...prev, interest: value }))}
-                    placeholder="Ej: 12.00"
-                    keyboardType="numeric"
-                    suffix="%"
-                    required
-                  />
-                )}
-              </Card>
-
-              {/* Configuración de pagos */}
-              <Card className="p-4 mb-4">
-                <Text className="text-gray-800 font-semibold mb-3">Configuración de Pagos</Text>
-
+                <InputField
+                  label={selectedLoanType?.category === 'san' ? 'Porcentaje de beneficio' : 'Tasa de interés anual'}
+                  value={formData.interest}
+                  onChangeText={(v) => setFormData(p => ({ ...p, interest: v }))}
+                  placeholder={`Ej: ${selectedLoanType?.default_interest || 12}`}
+                  keyboardType="numeric"
+                  suffix="%"
+                  helper={selectedLoanType?.category === 'san' ? 'Sobre el capital inicial' : 'Tasa anual'}
+                  required
+                />
                 <SelectField
                   label="Modalidad de pago"
                   value={formData.modality}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, modality: value }))}
+                  onValueChange={(v) => setFormData(p => ({ ...p, modality: v }))}
                   items={paymentModes.map(m => ({ label: m.name, value: m.id.toString() }))}
                   required
                 />
-
-                <SelectField
-                  label="Tipo de amortización"
-                  value={formData.amortization}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, amortization: value }))}
-                  items={amortizations.map(a => ({ label: a.name, value: a.id.toString() }))}
-                  required
-                />
-
                 <InputField
                   label="Fecha primer pago"
                   value={formData.firstPaymentDate}
-                  onChangeText={(value) => setFormData(prev => ({ ...prev, firstPaymentDate: value }))}
+                  onChangeText={(v) => setFormData(p => ({ ...p, firstPaymentDate: v }))}
                   placeholder="YYYY-MM-DD"
                   required
                 />
+              </Card>
 
+              {/* Desembolso */}
+              <Card style={{ marginBottom: SPACING.md }}>
+                <SectionTitle>Configuración de Desembolso</SectionTitle>
                 <SelectField
                   label="Caja"
                   value={formData.cash_box}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, cash_box: value }))}
-                  items={cashBoxes.map(c => ({ label: c.name, value: c.id.toString() }))}
+                  onValueChange={(v) => setFormData(p => ({ ...p, cash_box: v }))}
+                  items={cashBoxes.map(c => ({ label: `${c.name}  (RD$${c.balance.toLocaleString()})`, value: c.id.toString() }))}
                 />
-
                 <SelectField
                   label="Forma de entrega"
                   value={formData.payment_method}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, payment_method: value }))}
+                  onValueChange={(v) => setFormData(p => ({ ...p, payment_method: v }))}
                   items={paymentMethods.map(m => ({ label: m.name, value: m.id.toString() }))}
+                />
+                <InputField
+                  label="Referencia"
+                  value={formData.referenceCode}
+                  onChangeText={(v) => setFormData(p => ({ ...p, referenceCode: v }))}
+                  placeholder="Número de referencia (opcional)"
                 />
               </Card>
 
-              {/* Resumen */}
-              <Card className="p-4 mb-4">
-                <Text className="text-gray-800 font-semibold mb-3">Resumen del Préstamo</Text>
-                
-                <View className="flex-row flex-wrap gap-2">
+              {/* Resumen numérico */}
+              <Card style={{ marginBottom: SPACING.md }}>
+                <SectionTitle>Resumen del Préstamo</SectionTitle>
+                <View style={styles.statsGrid}>
                   <StatCard
-                    title="Monto del Préstamo"
+                    title="Capital"
                     value={formatCurrency(parseFloat(formData.loanAmount) || 0)}
                     icon="cash"
-                    color="blue"
+                    iconColor={COLORS.blue}
+                    iconBg={COLORS.blueLight}
                   />
                   <StatCard
-                    title="Plazo Total"
-                    value={`${formData.installments} cuotas`}
+                    title="Plazo"
+                    value={`${formData.installments} ${selectedLoanType?.category === 'san' ? 'días' : getPaymentPeriodLabel().toLowerCase()}`}
                     icon="calendar-clock"
-                    color="purple"
+                    iconColor={COLORS.purple}
+                    iconBg={COLORS.purpleLight}
                   />
                 </View>
-
-                <View className="flex-row flex-wrap gap-2 mt-2">
-                  <StatCard
-                    title="Tasa de Interés"
-                    value={`${formData.interest}%`}
-                    icon="percent"
-                    color="green"
-                  />
-                  {monthlyPayment > 0 && (
+                {periodicPayment > 0 && (
+                  <View style={[styles.statsGrid, { marginTop: SPACING.sm }]}>
                     <StatCard
-                      title="Pago por Cuota"
-                      value={formatCurrency(monthlyPayment)}
-                      icon="credit-card"
-                      color="amber"
+                      title={selectedLoanType?.category === 'san' ? 'Beneficio' : 'Interés'}
+                      value={`${formData.interest}%`}
+                      icon="percent"
+                      iconColor={catColors.primary}
+                      iconBg={catColors.light}
                     />
-                  )}
-                </View>
-
-                {totalInterest > 0 && (
-                  <View className="flex-row flex-wrap gap-2 mt-2">
                     <StatCard
-                      title="Interés Total"
+                      title={`Pago ${selectedLoanType?.category === 'san' ? 'Diario' : 'Período'}`}
+                      value={formatCurrency(periodicPayment)}
+                      icon="credit-card"
+                      iconColor={COLORS.orange}
+                      iconBg={COLORS.orangeLight}
+                    />
+                  </View>
+                )}
+                {totalInterest > 0 && (
+                  <View style={[styles.statsGrid, { marginTop: SPACING.sm }]}>
+                    <StatCard
+                      title={selectedLoanType?.category === 'san' ? 'Beneficio Total' : 'Interés Total'}
                       value={formatCurrency(totalInterest)}
-                      icon="alert-circle"
-                      color="red"
-                      subtitle={`${((totalInterest / parseFloat(formData.loanAmount)) * 100).toFixed(1)}%`}
+                      icon="trending-up"
+                      iconColor={COLORS.red}
+                      iconBg={COLORS.redLight}
+                      subtitle={`${((totalInterest / (parseFloat(formData.loanAmount) || 1)) * 100).toFixed(1)}% del capital`}
                     />
                     <StatCard
                       title="Total a Pagar"
                       value={formatCurrency(totalPayment)}
                       icon="cash-check"
-                      color="indigo"
+                      iconColor={catColors.primary}
+                      iconBg={catColors.light}
                     />
                   </View>
                 )}
               </Card>
 
-              {/* Tabla de Amortización */}
-              <Card className="p-4 mb-4">
-                <View className="flex-row items-center justify-between mb-3">
-                  <Text className="text-gray-800 font-semibold">Plan de Amortización</Text>
+              {/* Plan de pagos */}
+              <Card style={{ marginBottom: SPACING.md }}>
+                <View style={styles.planHeader}>
+                  <Text style={styles.sectionTitle}>
+                    {selectedLoanType?.category === 'san' ? 'Plan de Pagos Diarios' : 'Plan de Amortización'}
+                  </Text>
                   {amortizationDetails.length > 0 && (
-                    <TouchableOpacity 
-                      onPress={() => setShowAmortizationModal(true)}
-                      className="bg-indigo-100 px-3 py-2 rounded-lg"
-                    >
-                      <Text className="text-indigo-600 font-medium">Ver todo</Text>
+                    <TouchableOpacity onPress={() => setShowAmortizationModal(true)} style={[styles.verTodoBtn, { backgroundColor: catColors.light }]}>
+                      <Text style={[styles.verTodoBtnText, { color: catColors.primary }]}>Ver todo</Text>
                     </TouchableOpacity>
                   )}
                 </View>
 
                 {amortizationDetails.length > 0 ? (
                   <>
-                    {/* Vista previa */}
-                    {amortizationDetails.slice(0, 3).map((item) => (
-                      <AmortizationRow key={item.month} item={item} />
+                    {/* Tabla header */}
+                    <View style={styles.tableHeader}>
+                      <Text style={[styles.tableHeaderCell, { width: 32 }]}>#</Text>
+                      <Text style={[styles.tableHeaderCell, { width: 88 }]}>Fecha</Text>
+                      <Text style={[styles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}>Pago</Text>
+                      <Text style={[styles.tableHeaderCell, { width: 72, textAlign: 'right' }]}>Capital</Text>
+                      <Text style={[styles.tableHeaderCell, { width: 72, textAlign: 'right' }]}>Interés</Text>
+                      <Text style={[styles.tableHeaderCell, { width: 80, textAlign: 'right' }]}>Saldo</Text>
+                    </View>
+                    {amortizationDetails.slice(0, 5).map((item, idx) => (
+                      <AmortizationRow key={item.period} item={item} isEven={idx % 2 === 0} />
                     ))}
-                    
-                    {amortizationDetails.length > 3 && (
-                      <Text className="text-gray-500 text-center mt-3">
-                        + {amortizationDetails.length - 3} cuotas más
-                      </Text>
+                    {amortizationDetails.length > 5 && (
+                      <Text style={styles.morePeriods}>+ {amortizationDetails.length - 5} {selectedLoanType?.category === 'san' ? 'días' : 'períodos'} más</Text>
                     )}
 
                     {/* Gráfico */}
-                    <View className="mt-4">
-                      <Text className="text-gray-700 font-medium mb-2">Evolución de Pagos</Text>
+                    <View style={{ marginTop: SPACING.lg }}>
+                      <Text style={styles.chartTitle}>Evolución de Pagos</Text>
                       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                         <LineChart
                           data={chartData}
-                          width={Math.max(SCREEN_WIDTH - 80, chartData.labels.length * 60)}
-                          height={200}
+                          width={Math.max(SCREEN_WIDTH - 64, Math.min(chartData.labels.length * 36, 600))}
+                          height={180}
                           chartConfig={{
-                            backgroundColor: '#ffffff',
-                            backgroundGradientFrom: '#ffffff',
-                            backgroundGradientTo: '#ffffff',
+                            backgroundColor: COLORS.white,
+                            backgroundGradientFrom: COLORS.white,
+                            backgroundGradientTo: COLORS.white,
                             decimalPlaces: 0,
-                            color: (opacity = 1) => `rgba(79, 70, 229, ${opacity})`,
-                            labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`,
-                            style: {
-                              borderRadius: 16,
-                            },
-                            propsForDots: {
-                              r: '4',
-                              strokeWidth: '2',
-                              stroke: '#4F46E5'
-                            }
+                            color: (o = 1) => `rgba(79,70,229,${o})`,
+                            labelColor: (o = 1) => `rgba(107,114,128,${o})`,
+                            propsForDots: { r: '3', strokeWidth: '2', stroke: COLORS.indigo },
                           }}
                           bezier
-                          style={{
-                            marginVertical: 8,
-                            borderRadius: 16,
-                          }}
+                          style={{ borderRadius: RADIUS.lg, marginVertical: 6 }}
                         />
                       </ScrollView>
+                      <View style={styles.legend}>
+                        <View style={styles.legendItem}>
+                          <View style={[styles.legendDot, { backgroundColor: COLORS.indigo }]} />
+                          <Text style={styles.legendLabel}>Capital</Text>
+                        </View>
+                        <View style={styles.legendItem}>
+                          <View style={[styles.legendDot, { backgroundColor: COLORS.red }]} />
+                          <Text style={styles.legendLabel}>Interés</Text>
+                        </View>
+                      </View>
                     </View>
                   </>
                 ) : (
-                  <View className="items-center py-8">
-                    <Icon name="file-document-outline" size={48} color="#D1D5DB" />
-                    <Text className="text-gray-500 mt-2">Complete los datos para generar el plan de pagos</Text>
+                  <View style={styles.emptyState}>
+                    <Icon name="file-document-outline" size={44} color={COLORS.gray300} />
+                    <Text style={styles.emptyStateText}>Complete los datos para generar el plan de pagos</Text>
                   </View>
                 )}
               </Card>
             </>
           )}
 
+          {/* ===== TAB: CODEUDOR ===== */}
           {activeTab === 'guarantor' && (
-            <Card className="p-4 mb-4">
-              <Text className="text-gray-800 font-semibold mb-3">Información del Codeudor</Text>
-              
-              <InputField
-                label="Nombres Completos"
-                value={formData.nameCodebtor}
-                onChangeText={(value) => setFormData(prev => ({ ...prev, nameCodebtor: value }))}
-                placeholder="Nombre completo del codeudor"
-              />
-
-              <InputField
-                label="Número de Identificación"
-                value={formData.coDebtorId}
-                onChangeText={(value) => setFormData(prev => ({ ...prev, coDebtorId: value }))}
-                placeholder="Cédula o identificación"
-              />
-
-              <InputField
-                label="Teléfono"
-                value={formData.phoneCodebtor}
-                onChangeText={(value) => setFormData(prev => ({ ...prev, phoneCodebtor: value }))}
-                placeholder="Número de contacto"
-                keyboardType="phone-pad"
-              />
-
-              <InputField
-                label="Dirección"
-                value={formData.addressCodebtor}
-                onChangeText={(value) => setFormData(prev => ({ ...prev, addressCodebtor: value }))}
-                placeholder="Dirección completa"
-                multiline
-                numberOfLines={3}
-              />
-
-              <View className="bg-indigo-50 rounded-lg p-3 mt-4">
-                <View className="flex-row items-center">
-                  <Icon name="information" size={20} color="#4F46E5" />
-                  <Text className="text-indigo-700 text-sm ml-2 flex-1">
-                    La información del codeudor es opcional pero recomendada para préstamos de mayor monto.
-                  </Text>
-                </View>
+            <Card style={{ marginBottom: SPACING.md }}>
+              <View style={styles.cardHeaderRow}>
+                <Icon name="account-group" size={20} color={COLORS.indigo} />
+                <Text style={styles.cardHeaderTitle}>Información del Codeudor</Text>
+                {selectedLoanType?.requires_guarantor && (
+                  <Badge text="Requerido" color={COLORS.red} bg={COLORS.redLight} />
+                )}
+              </View>
+              <InputField label="Nombres Completos" value={formData.nameCodebtor} onChangeText={(v) => setFormData(p => ({ ...p, nameCodebtor: v }))} placeholder="Nombre completo del codeudor" error={errors.nameCodebtor} required={selectedLoanType?.requires_guarantor} />
+              <InputField label="Número de Identificación" value={formData.coDebtorId} onChangeText={(v) => setFormData(p => ({ ...p, coDebtorId: v }))} placeholder="Cédula o identificación" required={selectedLoanType?.requires_guarantor} />
+              <InputField label="Teléfono" value={formData.phoneCodebtor} onChangeText={(v) => setFormData(p => ({ ...p, phoneCodebtor: v }))} placeholder="Número de contacto" keyboardType="phone-pad" />
+              <InputField label="Dirección" value={formData.addressCodebtor} onChangeText={(v) => setFormData(p => ({ ...p, addressCodebtor: v }))} placeholder="Dirección completa" multiline numberOfLines={3} />
+              <View style={styles.infoBox}>
+                <Icon name="information" size={18} color={COLORS.blue} />
+                <Text style={[styles.infoBoxText, { color: COLORS.blue, marginLeft: 8, flex: 1 }]}>El codeudor será responsable solidario del préstamo en caso de incumplimiento.</Text>
               </View>
             </Card>
           )}
 
+          {/* ===== TAB: GARANTÍA ===== */}
           {activeTab === 'warranty' && (
-            <Card className="p-4 mb-4">
-              <Text className="text-gray-800 font-semibold mb-3">Información de Garantía</Text>
-
-              <SelectField
-                label="Tipo de Garantía"
-                value={formData.guarantee_type}
-                onValueChange={(value) => setFormData(prev => ({ ...prev, guarantee_type: value }))}
-                items={guaranteeTypes.map(g => ({ label: g.name, value: g.id.toString() }))}
-              />
-
-              <InputField
-                label="Valor de la Garantía"
-                value={formData.guarantee_value}
-                onChangeText={(value) => setFormData(prev => ({ ...prev, guarantee_value: value }))}
-                placeholder="Valor estimado"
-                keyboardType="numeric"
-                prefix="$"
-              />
-
-              <InputField
-                label="Descripción de la Garantía"
-                value={formData.guarantee_description}
-                onChangeText={(value) => setFormData(prev => ({ ...prev, guarantee_description: value }))}
-                placeholder="Describa detalladamente la garantía"
-                multiline
-                numberOfLines={4}
-              />
-
-              <InputField
-                label="Número de Expediente"
-                value={formData.guarantee_file_number}
-                onChangeText={(value) => setFormData(prev => ({ ...prev, guarantee_file_number: value }))}
-                placeholder="Número de registro"
-              />
-
-              <InputField
-                label="Notas Adicionales"
-                value={formData.guarantee_notes}
-                onChangeText={(value) => setFormData(prev => ({ ...prev, guarantee_notes: value }))}
-                placeholder="Observaciones sobre la garantía"
-                multiline
-                numberOfLines={3}
-              />
-
-              <View className="bg-amber-50 rounded-lg p-3 mt-4">
-                <View className="flex-row items-center">
-                  <Icon name="shield-alert" size={20} color="#D97706" />
-                  <Text className="text-amber-700 text-sm ml-2 flex-1">
-                    Las garantías ayudan a reducir el riesgo del préstamo. Asegúrese de documentar adecuadamente cada garantía.
-                  </Text>
-                </View>
+            <Card style={{ marginBottom: SPACING.md }}>
+              <View style={styles.cardHeaderRow}>
+                <Icon name="shield-check" size={20} color={COLORS.indigo} />
+                <Text style={styles.cardHeaderTitle}>Información de Garantía</Text>
+                {selectedLoanType?.requires_collateral && (
+                  <Badge text="Requerido" color={COLORS.red} bg={COLORS.redLight} />
+                )}
               </View>
+              <SelectField label="Tipo de Garantía" value={formData.guarantee_type} onValueChange={(v) => setFormData(p => ({ ...p, guarantee_type: v }))} items={guaranteeTypes.map(g => ({ label: g.name, value: g.id.toString() }))} error={errors.guarantee_type} required={selectedLoanType?.requires_collateral} />
+              <InputField label="Valor de la Garantía" value={formData.guarantee_value} onChangeText={(v) => setFormData(p => ({ ...p, guarantee_value: v }))} placeholder="Valor estimado" keyboardType="numeric" prefix="RD$" />
+              <InputField label="Descripción de la Garantía" value={formData.guarantee_description} onChangeText={(v) => setFormData(p => ({ ...p, guarantee_description: v }))} placeholder="Describa detalladamente la garantía" multiline numberOfLines={4} />
+              <InputField label="Número de Expediente" value={formData.guarantee_file_number} onChangeText={(v) => setFormData(p => ({ ...p, guarantee_file_number: v }))} placeholder="Número de registro" />
+              <InputField label="Notas Adicionales" value={formData.guarantee_notes} onChangeText={(v) => setFormData(p => ({ ...p, guarantee_notes: v }))} placeholder="Observaciones sobre la garantía" multiline numberOfLines={3} />
+
+              {formData.guarantee_value && parseFloat(formData.guarantee_value) > 0 && parseFloat(formData.loanAmount) > 0 && (() => {
+                const ratio = parseFloat(formData.guarantee_value) / parseFloat(formData.loanAmount);
+                const ok = ratio >= 1;
+                return (
+                  <View style={[styles.guaranteeStatus, { backgroundColor: ok ? COLORS.greenLight : COLORS.amberLight }]}>
+                    <Icon name={ok ? 'check-circle' : 'alert'} size={18} color={ok ? COLORS.green : COLORS.amber} />
+                    <Text style={[styles.guaranteeStatusText, { color: ok ? COLORS.green : COLORS.amber }]}>
+                      {ok
+                        ? `Garantía suficiente: ${(ratio * 100).toFixed(0)}% del préstamo`
+                        : `Garantía insuficiente: solo cubre ${(ratio * 100).toFixed(0)}% del préstamo`}
+                    </Text>
+                  </View>
+                );
+              })()}
             </Card>
           )}
 
           {/* Botones de acción */}
-          <View className="flex-row gap-3 mb-6">
-            <View className="flex-1">
-              <GradientButton
-                onPress={() => {}}
-                variant="outline"
-              >
-                Cancelar
-              </GradientButton>
+          <View style={styles.actionButtons}>
+            <View style={{ flex: 1 }}>
+              <GradientButton onPress={() => {}} variant="outline">Cancelar</GradientButton>
             </View>
-            <View className="flex-1">
+            <View style={{ flex: 1, marginLeft: 12 }}>
               <GradientButton
                 onPress={handleSubmit}
                 loading={loading}
                 disabled={amortizationDetails.length === 0}
+                variant={selectedLoanType?.category === 'san' ? 'success' : 'primary'}
+                colors={catColors.gradient}
+                icon="check-circle"
               >
-                Registrar Préstamo
+                {selectedLoanType?.category === 'san' ? 'Crear San' : 'Registrar Préstamo'}
               </GradientButton>
             </View>
           </View>
         </ScrollView>
 
-        {/* Modal de Amortización Completa */}
-        <Modal
-          visible={showAmortizationModal}
-          animationType="slide"
-          transparent
-          onRequestClose={() => setShowAmortizationModal(false)}
-        >
-          <BlurView intensity={100} tint="dark" className="flex-1">
-            <View className="flex-1 justify-end">
-              <View className="bg-white rounded-t-3xl max-h-[80%]">
-                <View className="p-4 border-b border-gray-200">
-                  <View className="flex-row items-center justify-between">
-                    <Text className="text-xl font-bold text-gray-800">Plan de Amortización</Text>
-                    <TouchableOpacity onPress={() => setShowAmortizationModal(false)}>
-                      <Icon name="close" size={24} color="#6B7280" />
-                    </TouchableOpacity>
-                  </View>
-                </View>
+        {/* ── Modal: Selector de Tipo ── */}
+        <Modal visible={showLoanTypeSelector} animationType="slide" transparent onRequestClose={() => setShowLoanTypeSelector(false)}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalSheet}>
+              <View style={styles.modalHandle} />
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Tipos de Préstamo</Text>
+                <TouchableOpacity onPress={() => setShowLoanTypeSelector(false)} style={styles.modalClose}>
+                  <Icon name="close" size={22} color={COLORS.gray600} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={{ padding: SPACING.base }} showsVerticalScrollIndicator={false}>
+                <Text style={styles.categoryLabel}>FORMALES</Text>
+                {loanTypes.filter(t => t.category === 'formal').map(type => (
+                  <LoanTypeCard key={type.id} loanType={type} isSelected={formData.loan_type === type.id.toString()} onSelect={() => { setFormData(p => ({ ...p, loan_type: type.id.toString() })); setShowLoanTypeSelector(false); }} />
+                ))}
+                <Text style={[styles.categoryLabel, { marginTop: SPACING.base }]}>INFORMALES</Text>
+                {loanTypes.filter(t => t.category === 'informal').map(type => (
+                  <LoanTypeCard key={type.id} loanType={type} isSelected={formData.loan_type === type.id.toString()} onSelect={() => { setFormData(p => ({ ...p, loan_type: type.id.toString() })); setShowLoanTypeSelector(false); }} />
+                ))}
+                <Text style={[styles.categoryLabel, { marginTop: SPACING.base }]}>PRÉSTAMOS SAN</Text>
+                {loanTypes.filter(t => t.category === 'san').map(type => (
+                  <LoanTypeCard key={type.id} loanType={type} isSelected={formData.loan_type === type.id.toString()} onSelect={() => { setFormData(p => ({ ...p, loan_type: type.id.toString() })); setShowLoanTypeSelector(false); }} />
+                ))}
+                <View style={{ height: 32 }} />
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
 
-                <ScrollView className="p-4">
-                  <View className="flex-row bg-gray-100 py-3 px-2 rounded-lg mb-2">
-                    <Text className="w-12 text-gray-600 font-medium text-xs">#</Text>
-                    <Text className="w-20 text-gray-600 font-medium text-xs">Fecha</Text>
-                    <Text className="flex-1 text-gray-600 font-medium text-xs text-right">Pago</Text>
-                    <Text className="w-20 text-gray-600 font-medium text-xs text-right">Capital</Text>
-                    <Text className="w-20 text-gray-600 font-medium text-xs text-right">Interés</Text>
-                    <Text className="w-24 text-gray-600 font-medium text-xs text-right">Saldo</Text>
-                  </View>
-                  
-                  {amortizationDetails.map((item) => (
-                    <AmortizationRow key={item.month} item={item} />
+        {/* ── Modal: Amortización Completa ── */}
+        <Modal visible={showAmortizationModal} animationType="slide" transparent onRequestClose={() => setShowAmortizationModal(false)}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalSheet}>
+              <View style={styles.modalHandle} />
+              <View style={styles.modalHeader}>
+                <View>
+                  <Text style={styles.modalTitle}>{selectedLoanType?.category === 'san' ? 'Plan de Pagos Diarios' : 'Plan de Amortización'}</Text>
+                  <Text style={styles.modalSubtitle}>{amortizationDetails.length} {selectedLoanType?.category === 'san' ? 'días' : 'períodos'}</Text>
+                </View>
+                <TouchableOpacity onPress={() => setShowAmortizationModal(false)} style={styles.modalClose}>
+                  <Icon name="close" size={22} color={COLORS.gray600} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={{ padding: SPACING.base }} showsVerticalScrollIndicator={false}>
+                <View style={styles.tableHeader}>
+                  <Text style={[styles.tableHeaderCell, { width: 32 }]}>#</Text>
+                  <Text style={[styles.tableHeaderCell, { width: 88 }]}>Fecha</Text>
+                  <Text style={[styles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}>Pago</Text>
+                  <Text style={[styles.tableHeaderCell, { width: 72, textAlign: 'right' }]}>Capital</Text>
+                  <Text style={[styles.tableHeaderCell, { width: 72, textAlign: 'right' }]}>Interés</Text>
+                  <Text style={[styles.tableHeaderCell, { width: 80, textAlign: 'right' }]}>Saldo</Text>
+                </View>
+                {amortizationDetails.map((item, idx) => (
+                  <AmortizationRow key={item.period} item={item} isEven={idx % 2 === 0} />
+                ))}
+
+                {/* Totales */}
+                <View style={styles.totalsBox}>
+                  <Text style={styles.totalsTitle}>Resumen Total</Text>
+                  {[
+                    { label: 'Capital prestado', value: formatCurrency(parseFloat(formData.loanAmount) || 0) },
+                    { label: 'Interés total', value: formatCurrency(totalInterest) },
+                    { label: `Pago ${selectedLoanType?.category === 'san' ? 'diario' : 'periódico'}`, value: formatCurrency(periodicPayment) },
+                  ].map(({ label, value }) => (
+                    <View key={label} style={styles.totalsRow}>
+                      <Text style={styles.totalsLabel}>{label}:</Text>
+                      <Text style={styles.totalsValue}>{value}</Text>
+                    </View>
                   ))}
-                </ScrollView>
-
-                <View className="p-4 border-t border-gray-200">
-                  <GradientButton onPress={() => setShowAmortizationModal(false)}>
-                    Cerrar
-                  </GradientButton>
+                  <View style={[styles.totalsRow, styles.totalsFinal]}>
+                    <Text style={styles.totalsFinalLabel}>Total a pagar:</Text>
+                    <Text style={[styles.totalsValue, { color: catColors.primary, fontWeight: '700', fontSize: 16 }]}>{formatCurrency(totalPayment)}</Text>
+                  </View>
                 </View>
+                <View style={{ height: 16 }} />
+              </ScrollView>
+              <View style={styles.modalFooter}>
+                <GradientButton onPress={() => setShowAmortizationModal(false)} colors={catColors.gradient}>Cerrar</GradientButton>
               </View>
             </View>
-          </BlurView>
+          </View>
         </Modal>
 
-        {/* Modal de Éxito */}
-        <Modal
-          visible={showSuccessModal}
-          animationType="fade"
-          transparent
-          onRequestClose={() => setShowSuccessModal(false)}
-        >
-          <BlurView intensity={100} tint="dark" className="flex-1 items-center justify-center px-4">
-            <View className="bg-white rounded-3xl p-6 w-full max-w-md">
-              <View className="items-center">
-                <View className="w-20 h-20 rounded-full bg-green-100 items-center justify-center mb-4">
-                  <Icon name="check-circle" size={48} color="#10B981" />
-                </View>
-                <Text className="text-2xl font-bold text-gray-800 mb-2">¡Préstamo Creado!</Text>
-                <Text className="text-gray-600 text-center mb-6">
-                  El préstamo ha sido registrado exitosamente. ¿Qué deseas hacer ahora?
-                </Text>
-                
-                <View className="w-full gap-3">
-                  <GradientButton onPress={() => {
-                    setShowSuccessModal(false);
-                    // Navegar a detalles
-                  }}>
-                    Ver Préstamo
-                  </GradientButton>
-                  <GradientButton 
-                    onPress={() => {
-                      setShowSuccessModal(false);
-                      // Resetear formulario
-                      setFormData({
-                        ...formData,
-                        loanAmount: '10000',
-                        installments: '12',
-                        interest: '12',
-                      });
-                      setAmortizationDetails([]);
-                    }}
-                    variant="outline"
-                  >
-                    Crear Otro
-                  </GradientButton>
-                </View>
+        {/* ── Modal: Éxito ── */}
+        <Modal visible={showSuccessModal} animationType="fade" transparent onRequestClose={() => setShowSuccessModal(false)}>
+          <View style={styles.successOverlay}>
+            <View style={styles.successCard}>
+              <LinearGradient colors={catColors.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.successIcon}>
+                <Icon name="check" size={36} color={COLORS.white} />
+              </LinearGradient>
+              <Text style={styles.successTitle}>
+                {selectedLoanType?.category === 'san' ? '¡San Creado!' : '¡Préstamo Creado!'}
+              </Text>
+              <Text style={styles.successSubtitle}>
+                El préstamo ha sido registrado exitosamente.
+                {selectedLoanType?.category === 'san' && ' Recuerda cobrar el primer pago mañana.'}
+              </Text>
+
+              <View style={styles.successSummary}>
+                {[
+                  { label: 'Cliente', value: `${selectedCustomer?.first_name || ''} ${selectedCustomer?.last_name || ''}`.trim() || '–' },
+                  { label: 'Monto', value: formatCurrency(parseFloat(formData.loanAmount) || 0) },
+                  { label: selectedLoanType?.category === 'san' ? 'Pago diario' : 'Pago período', value: formatCurrency(periodicPayment) },
+                  { label: 'Total a pagar', value: formatCurrency(totalPayment) },
+                ].map(({ label, value }) => (
+                  <View key={label} style={styles.successSummaryRow}>
+                    <Text style={styles.successSummaryLabel}>{label}:</Text>
+                    <Text style={styles.successSummaryValue}>{value}</Text>
+                  </View>
+                ))}
+              </View>
+
+              <GradientButton onPress={() => setShowSuccessModal(false)} colors={catColors.gradient} icon="eye">
+                Ver Préstamo
+              </GradientButton>
+              <View style={{ marginTop: 10 }}>
+                <GradientButton variant="outline" onPress={() => { setShowSuccessModal(false); setAmortizationDetails([]); }}>
+                  Crear Otro
+                </GradientButton>
               </View>
             </View>
-          </BlurView>
+          </View>
         </Modal>
+
       </SafeAreaView>
     </GestureHandlerRootView>
   );
 }
+
+// ============================================================
+// STYLESHEET
+// ============================================================
+
+const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: COLORS.gray50 },
+
+  // Header
+  header: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.md, paddingBottom: SPACING.xl },
+  headerContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  headerIconBg: { width: 44, height: 44, borderRadius: RADIUS.full, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { color: COLORS.white, fontSize: 18, fontWeight: '700', letterSpacing: 0.2 },
+  headerSubtitle: { color: 'rgba(255,255,255,0.8)', fontSize: 12, marginTop: 2 },
+  headerSwapBtn: { width: 40, height: 40, borderRadius: RADIUS.full, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+
+  // Tabs
+  tabBar: { flexDirection: 'row', backgroundColor: COLORS.white, marginHorizontal: SPACING.base, marginTop: -SPACING.base, borderRadius: RADIUS.xl, padding: 4, shadowColor: COLORS.shadowMd, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 1, shadowRadius: 12, elevation: 6 },
+  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: RADIUS.lg },
+  tabLabel: { fontSize: 12, fontWeight: '600', marginLeft: 5 },
+  tabDot: { width: 6, height: 6, borderRadius: RADIUS.full, backgroundColor: COLORS.red, marginLeft: 3 },
+
+  // Scroll
+  scroll: { flex: 1 },
+  scrollContent: { paddingHorizontal: SPACING.base, paddingTop: SPACING.base + 4, paddingBottom: SPACING.xl },
+
+  // Card
+  card: { backgroundColor: COLORS.white, borderRadius: RADIUS.xl, padding: SPACING.base, shadowColor: COLORS.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 3, borderWidth: 1, borderColor: COLORS.gray100 },
+
+  // Typography
+  sectionTitle: { fontSize: 15, fontWeight: '700', color: COLORS.gray800, marginBottom: SPACING.md },
+  cardHeaderTitle: { fontSize: 15, fontWeight: '700', color: COLORS.gray800, marginLeft: 8, flex: 1 },
+
+  // Form fields
+  fieldContainer: { marginBottom: SPACING.md },
+  labelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+  label: { fontSize: 13, fontWeight: '600', color: COLORS.gray700 },
+  required: { color: COLORS.red, fontSize: 13 },
+  inputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.gray50, borderRadius: RADIUS.md, borderWidth: 1.5 },
+  inputNormal: { borderColor: COLORS.gray200 },
+  inputError: { borderColor: COLORS.red },
+  inputDisabled: { backgroundColor: COLORS.gray100 },
+  textInput: { flex: 1, paddingHorizontal: SPACING.md, paddingVertical: 12, fontSize: 15, color: COLORS.gray800 },
+  inputAffix: { paddingHorizontal: SPACING.md, fontSize: 14, color: COLORS.gray500, fontWeight: '500' },
+  pickerWrapper: { backgroundColor: COLORS.gray50, borderRadius: RADIUS.md, borderWidth: 1.5, overflow: 'hidden' },
+  picker: { height: 52 },
+  fieldHelper: { fontSize: 11, marginTop: 4 },
+  fieldError: { color: COLORS.red },
+  fieldHelperText: { color: COLORS.gray400 },
+
+  // Buttons
+  buttonWrapper: { borderRadius: RADIUS.md, overflow: 'hidden' },
+  gradientButton: { paddingVertical: 14, paddingHorizontal: SPACING.lg, alignItems: 'center', justifyContent: 'center' },
+  buttonInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  buttonText: { color: COLORS.white, fontSize: 15, fontWeight: '700', letterSpacing: 0.2 },
+  outlineButton: { borderRadius: RADIUS.md, borderWidth: 2, borderColor: COLORS.indigo, paddingVertical: 13, paddingHorizontal: SPACING.lg, alignItems: 'center', justifyContent: 'center' },
+  outlineButtonText: { color: COLORS.indigo, fontSize: 15, fontWeight: '700' },
+  actionButtons: { flexDirection: 'row', marginBottom: SPACING.xl },
+
+  // Badge
+  badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.full },
+  badgeText: { fontSize: 11, fontWeight: '700' },
+
+  // Stat cards
+  statsGrid: { flexDirection: 'row', gap: SPACING.sm },
+  statCard: { flex: 1, backgroundColor: COLORS.gray50, borderRadius: RADIUS.lg, padding: SPACING.md, borderWidth: 1, borderColor: COLORS.gray100 },
+  statIcon: { width: 36, height: 36, borderRadius: RADIUS.full, alignItems: 'center', justifyContent: 'center', marginBottom: SPACING.sm },
+  statTitle: { fontSize: 11, color: COLORS.gray500, marginBottom: 2 },
+  statValue: { fontSize: 14, fontWeight: '700', color: COLORS.gray800 },
+  statSubtitle: { fontSize: 10, color: COLORS.gray400, marginTop: 2 },
+
+  // Selected loan row
+  selectedLoanRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  selectedLoanLabel: { fontSize: 11, color: COLORS.gray400, marginBottom: 2 },
+  selectedLoanName: { fontSize: 16, fontWeight: '700', color: COLORS.gray800 },
+
+  // Customer preview
+  customerPreview: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.gray50, borderRadius: RADIUS.md, padding: SPACING.md, marginTop: 4 },
+  customerAvatar: { width: 40, height: 40, borderRadius: RADIUS.full, backgroundColor: COLORS.indigoLight, alignItems: 'center', justifyContent: 'center' },
+  customerName: { fontWeight: '600', color: COLORS.gray800, fontSize: 14, marginRight: 6 },
+  customerMeta: { color: COLORS.gray500, fontSize: 12, marginTop: 2 },
+
+  // Config cards
+  sanCard: { backgroundColor: COLORS.greenLight, borderColor: '#A7F3D0', borderWidth: 1 },
+  informalCard: { backgroundColor: COLORS.orangeLight, borderColor: '#FED7AA', borderWidth: 1 },
+  configCardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: SPACING.md },
+  configCardTitle: { fontWeight: '700', fontSize: 14, marginLeft: 7 },
+  switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderTopWidth: 1, borderTopColor: COLORS.gray100 },
+  switchLabel: { fontSize: 14, color: COLORS.gray700 },
+
+  // Info box
+  infoBox: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: COLORS.blueLight, borderRadius: RADIUS.md, padding: SPACING.md, marginTop: SPACING.sm },
+  infoBoxText: { fontSize: 12, color: COLORS.gray600, lineHeight: 18 },
+
+  // Card header row
+  cardHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: SPACING.base },
+
+  // Plan header
+  planHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: SPACING.md },
+  verTodoBtn: { paddingHorizontal: SPACING.md, paddingVertical: 7, borderRadius: RADIUS.md },
+  verTodoBtnText: { fontSize: 13, fontWeight: '600' },
+
+  // Table
+  tableHeader: { flexDirection: 'row', backgroundColor: COLORS.gray100, borderRadius: RADIUS.sm, paddingVertical: 8, paddingHorizontal: 6, marginBottom: 4 },
+  tableHeaderCell: { fontSize: 10, color: COLORS.gray500, fontWeight: '700', textTransform: 'uppercase' },
+  amortRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 6, borderBottomWidth: 1, borderBottomColor: COLORS.gray100 },
+  amortRowEven: { backgroundColor: COLORS.gray50 },
+  amortCell: { fontSize: 12, color: COLORS.gray600 },
+  morePeriods: { textAlign: 'center', color: COLORS.gray400, fontSize: 13, marginTop: SPACING.md, fontStyle: 'italic' },
+
+  // Chart
+  chartTitle: { fontSize: 13, fontWeight: '600', color: COLORS.gray700, marginBottom: 4 },
+  legend: { flexDirection: 'row', justifyContent: 'center', marginTop: 6, gap: SPACING.lg },
+  legendItem: { flexDirection: 'row', alignItems: 'center' },
+  legendDot: { width: 8, height: 8, borderRadius: RADIUS.full, marginRight: 4 },
+  legendLabel: { fontSize: 11, color: COLORS.gray500 },
+
+  // Empty state
+  emptyState: { alignItems: 'center', paddingVertical: SPACING.xl },
+  emptyStateText: { color: COLORS.gray400, fontSize: 13, textAlign: 'center', marginTop: SPACING.sm },
+
+  // Guarantee status
+  guaranteeStatus: { flexDirection: 'row', alignItems: 'center', borderRadius: RADIUS.md, padding: SPACING.md, marginTop: SPACING.md },
+  guaranteeStatusText: { fontSize: 13, fontWeight: '600', marginLeft: 8, flex: 1 },
+
+  // Modals
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalSheet: { backgroundColor: COLORS.white, borderTopLeftRadius: RADIUS['2xl'], borderTopRightRadius: RADIUS['2xl'], maxHeight: '85%' },
+  modalHandle: { width: 40, height: 4, backgroundColor: COLORS.gray200, borderRadius: RADIUS.full, alignSelf: 'center', marginTop: SPACING.md },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.gray100 },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: COLORS.gray800 },
+  modalSubtitle: { fontSize: 12, color: COLORS.gray400, marginTop: 2 },
+  modalClose: { width: 36, height: 36, borderRadius: RADIUS.full, backgroundColor: COLORS.gray100, alignItems: 'center', justifyContent: 'center' },
+  modalFooter: { padding: SPACING.base, borderTopWidth: 1, borderTopColor: COLORS.gray100 },
+
+  // Totals
+  totalsBox: { backgroundColor: COLORS.gray50, borderRadius: RADIUS.lg, padding: SPACING.base, marginTop: SPACING.lg, borderWidth: 1, borderColor: COLORS.gray100 },
+  totalsTitle: { fontSize: 14, fontWeight: '700', color: COLORS.gray800, marginBottom: SPACING.md },
+  totalsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.sm },
+  totalsLabel: { fontSize: 13, color: COLORS.gray500 },
+  totalsValue: { fontSize: 13, fontWeight: '600', color: COLORS.gray700 },
+  totalsFinal: { borderTopWidth: 1, borderTopColor: COLORS.gray200, paddingTop: SPACING.sm, marginTop: 4 },
+  totalsFinalLabel: { fontSize: 14, fontWeight: '700', color: COLORS.gray800 },
+
+  // Loan type cards
+  loanTypeCard: { borderRadius: RADIUS.lg, borderWidth: 2, padding: SPACING.md, marginBottom: SPACING.sm },
+  loanTypeHeader: { flexDirection: 'row', alignItems: 'center' },
+  loanTypeIcon: { width: 44, height: 44, borderRadius: RADIUS.full, alignItems: 'center', justifyContent: 'center' },
+  loanTypeName: { fontSize: 15, fontWeight: '700', color: COLORS.gray800 },
+  loanTypeRange: { fontSize: 12, color: COLORS.gray500, marginTop: 2 },
+  loanTypeTags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: SPACING.sm },
+  tag: { backgroundColor: COLORS.gray100, paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.full },
+  tagText: { fontSize: 11, color: COLORS.gray600, fontWeight: '500' },
+  categoryLabel: { fontSize: 11, fontWeight: '700', color: COLORS.gray400, letterSpacing: 1, marginBottom: SPACING.sm },
+
+  // Success modal
+  successOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: SPACING.lg },
+  successCard: { backgroundColor: COLORS.white, borderRadius: RADIUS['2xl'], padding: SPACING.xl, width: '100%', maxWidth: 400, alignItems: 'center' },
+  successIcon: { width: 80, height: 80, borderRadius: RADIUS.full, alignItems: 'center', justifyContent: 'center', marginBottom: SPACING.lg },
+  successTitle: { fontSize: 24, fontWeight: '800', color: COLORS.gray800, marginBottom: SPACING.sm },
+  successSubtitle: { fontSize: 14, color: COLORS.gray500, textAlign: 'center', marginBottom: SPACING.lg, lineHeight: 20 },
+  successSummary: { backgroundColor: COLORS.gray50, borderRadius: RADIUS.lg, padding: SPACING.base, width: '100%', marginBottom: SPACING.lg, borderWidth: 1, borderColor: COLORS.gray100 },
+  successSummaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.sm },
+  successSummaryLabel: { fontSize: 13, color: COLORS.gray500 },
+  successSummaryValue: { fontSize: 13, fontWeight: '600', color: COLORS.gray800 },
+});
