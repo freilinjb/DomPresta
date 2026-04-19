@@ -1,6 +1,6 @@
 export type RootStackParamList = {
   Login: undefined;
-  MainTabs: undefined;
+  MainDrawer: undefined;
   LoanDetails: { loanId: string };
   LoanForm: { loanId?: string };
   PaymentForm: { loanId: string };
@@ -15,9 +15,14 @@ export type MainTabParamList = {
   Home: undefined;
   Loans: undefined;
   Clients: undefined;
+  Profile: undefined;
+};
+
+export type DrawerParamList = {
+  MainTabs: undefined;
   Vendors: undefined;
   LoanRequests: undefined;
   CashRegister: undefined;
-  Profile: undefined;
   Settings: undefined;
+  Reports: undefined;
 };

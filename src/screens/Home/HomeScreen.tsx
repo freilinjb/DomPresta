@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { Loan } from '../../types';
 import { LoanService } from '../../services/loanService';
 import { COLORS } from '../../constants';
@@ -18,7 +19,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   useEffect(() => {
     loadLoans();
-  }, []);
+    navigation.setOptions({
+      headerLeft: () => (
+        <TouchableOpacity onPress={() => navigation.getParent()?.openDrawer()} style={{ marginLeft: 10 }}>
+          <Ionicons name="menu" size={24} color="white" />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation]);
 
   const loadLoans = async () => {
     try {

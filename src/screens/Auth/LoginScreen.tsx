@@ -96,7 +96,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       const user = await AuthService.login(email.trim(), password);
       if (user) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        navigation.replace('MainTabs');
+        navigation.replace('MainDrawer');
       }
     } catch (error) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -141,7 +141,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
         Alert.alert('Info', 'Apple Auth no implementado aún');
         if (user) {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          navigation.replace('MainTabs');
+          navigation.replace('MainDrawer');
         }
       }
     } catch (error: any) {

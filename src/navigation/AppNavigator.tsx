@@ -2,6 +2,7 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createDrawerNavigator } from '@react-navigation/drawer';
 import { LoginScreen } from '../screens/Auth/LoginScreen';
 import { HomeScreen } from '../screens/Home/HomeScreen';
 import { LoansScreen } from '../screens/Loans/LoansScreen';
@@ -19,20 +20,18 @@ import { VendorsScreen } from '../screens/Vendors/VendorsScreen';
 import { LoanRequestsScreen } from '../screens/LoanRequests/LoanRequestsScreen';
 import { CashRegisterScreen } from '../screens/CashRegister/CashRegisterScreen';
 import { COLORS } from '../constants';
-import { RootStackParamList, MainTabParamList } from './types';
+import { RootStackParamList, MainTabParamList, DrawerParamList } from './types';
+import CustomTabBar from './CustomTabBar';
 
 const Stack = createStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
+const Drawer = createDrawerNavigator<DrawerParamList>();
 
 const MainTabs = () => {
   return (
     <Tab.Navigator
+      tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={{
-        tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.text,
-        tabBarStyle: {
-          backgroundColor: 'white',
-        },
         headerStyle: {
           backgroundColor: COLORS.primary,
         },
@@ -64,30 +63,6 @@ const MainTabs = () => {
         }}
       />
       <Tab.Screen
-        name="Vendors"
-        component={VendorsScreen}
-        options={{
-          title: 'Vendedores',
-          tabBarLabel: 'Vendedores',
-        }}
-      />
-      <Tab.Screen
-        name="LoanRequests"
-        component={LoanRequestsScreen}
-        options={{
-          title: 'Solicitudes',
-          tabBarLabel: 'Solicitudes',
-        }}
-      />
-      <Tab.Screen
-        name="CashRegister"
-        component={CashRegisterScreen}
-        options={{
-          title: 'Arqueo',
-          tabBarLabel: 'Arqueo',
-        }}
-      />
-      <Tab.Screen
         name="Profile"
         component={ProfileScreen}
         options={{
@@ -95,15 +70,69 @@ const MainTabs = () => {
           tabBarLabel: 'Perfil',
         }}
       />
-      <Tab.Screen
+    </Tab.Navigator>
+  );
+};
+
+const MainDrawer = () => {
+  return (
+    <Drawer.Navigator
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: COLORS.primary,
+        },
+        headerTintColor: 'white',
+      }}
+    >
+      <Drawer.Screen
+        name="MainTabs"
+        component={MainTabs}
+        options={{
+          title: 'Inicio',
+          drawerLabel: 'Inicio',
+        }}
+      />
+      <Drawer.Screen
+        name="Vendors"
+        component={VendorsScreen}
+        options={{
+          title: 'Vendedores',
+          drawerLabel: 'Vendedores',
+        }}
+      />
+      <Drawer.Screen
+        name="LoanRequests"
+        component={LoanRequestsScreen}
+        options={{
+          title: 'Solicitudes',
+          drawerLabel: 'Solicitudes',
+        }}
+      />
+      <Drawer.Screen
+        name="CashRegister"
+        component={CashRegisterScreen}
+        options={{
+          title: 'Arqueo',
+          drawerLabel: 'Arqueo',
+        }}
+      />
+      <Drawer.Screen
         name="Settings"
         component={SettingsScreen}
         options={{
           title: 'Configuraciones',
-          tabBarLabel: 'Ajustes',
+          drawerLabel: 'Ajustes',
         }}
       />
-    </Tab.Navigator>
+      <Drawer.Screen
+        name="Reports"
+        component={ReportsScreen}
+        options={{
+          title: 'Reportes',
+          drawerLabel: 'Reportes',
+        }}
+      />
+    </Drawer.Navigator>
   );
 };
 
@@ -125,8 +154,8 @@ const AppNavigator = () => {
           options={{ headerShown: false }}
         />
         <Stack.Screen
-          name="MainTabs"
-          component={MainTabs}
+          name="MainDrawer"
+          component={MainDrawer}
           options={{ headerShown: false }}
         />
         <Stack.Screen

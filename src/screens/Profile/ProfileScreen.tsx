@@ -1,14 +1,15 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../../constants';
 import { AuthService } from '../../services/authService';
 import { MainTabParamList, RootStackParamList } from '../../navigation/types';
 
 type ProfileScreenTabProp = BottomTabNavigationProp<MainTabParamList, 'Profile'>;
-type ProfileScreenStackProp = StackNavigationProp<RootStackParamList, 'MainTabs'>;
+type ProfileScreenStackProp = StackNavigationProp<RootStackParamList, 'MainDrawer'>;
 
 type ProfileScreenNavigationProp = CompositeNavigationProp<
   ProfileScreenTabProp,
@@ -20,6 +21,15 @@ interface ProfileScreenProps {
 }
 
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
+  useEffect(() => {
+    navigation.setOptions({
+      headerLeft: () => (
+        <TouchableOpacity onPress={() => navigation.getParent()?.openDrawer()} style={{ marginLeft: 10 }}>
+          <Ionicons name="menu" size={24} color="white" />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation]);
   const handleLogout = async () => {
     Alert.alert(
       'Cerrar Sesión',

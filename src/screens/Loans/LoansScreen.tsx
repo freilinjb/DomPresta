@@ -29,7 +29,14 @@ export const LoansScreen: React.FC<LoansScreenProps> = ({ navigation }) => {
 
   useEffect(() => {
     loadLoans();
-  }, []);
+    navigation.setOptions({
+      headerLeft: () => (
+        <TouchableOpacity onPress={() => navigation.getParent()?.openDrawer()} style={{ marginLeft: 10 }}>
+          <Ionicons name="menu" size={24} color="white" />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation]);
 
   const loadLoans = async () => {
     try {

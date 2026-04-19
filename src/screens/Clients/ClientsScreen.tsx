@@ -26,7 +26,14 @@ export const ClientsScreen: React.FC<ClientsScreenProps> = ({ navigation }) => {
 
   useEffect(() => {
     loadClients();
-  }, []);
+    navigation.setOptions({
+      headerLeft: () => (
+        <TouchableOpacity onPress={() => navigation.getParent()?.openDrawer()} style={{ marginLeft: 10 }}>
+          <Ionicons name="menu" size={24} color="white" />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation]);
 
   const loadClients = async () => {
     try {
