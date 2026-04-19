@@ -8,9 +8,16 @@ import { LoansScreen } from '../screens/Loans/LoansScreen';
 import { LoanDetailsScreen } from '../screens/Loans/LoanDetailsScreen';
 import { LoanFormScreen } from '../screens/Forms/LoanFormScreen';
 import { PaymentFormScreen } from '../screens/Forms/PaymentFormScreen';
+import { ClientFormScreen } from '../screens/Forms/ClientFormScreen';
+import { VendorFormScreen } from '../screens/Forms/VendorFormScreen';
+import { LoanRequestFormScreen } from '../screens/Forms/LoanRequestFormScreen';
 import { ReportsScreen } from '../screens/Reports/ReportsScreen';
 import { ProfileScreen } from '../screens/Profile/ProfileScreen';
 import { SettingsScreen } from '../screens/Settings/SettingsScreen';
+import { ClientsScreen } from '../screens/Clients/ClientsScreen';
+import { VendorsScreen } from '../screens/Vendors/VendorsScreen';
+import { LoanRequestsScreen } from '../screens/LoanRequests/LoanRequestsScreen';
+import { CashRegisterScreen } from '../screens/CashRegister/CashRegisterScreen';
 import { COLORS } from '../constants';
 import { RootStackParamList, MainTabParamList } from './types';
 
@@ -46,6 +53,38 @@ const MainTabs = () => {
         options={{
           title: 'Préstamos',
           tabBarLabel: 'Préstamos',
+        }}
+      />
+      <Tab.Screen
+        name="Clients"
+        component={ClientsScreen}
+        options={{
+          title: 'Clientes',
+          tabBarLabel: 'Clientes',
+        }}
+      />
+      <Tab.Screen
+        name="Vendors"
+        component={VendorsScreen}
+        options={{
+          title: 'Vendedores',
+          tabBarLabel: 'Vendedores',
+        }}
+      />
+      <Tab.Screen
+        name="LoanRequests"
+        component={LoanRequestsScreen}
+        options={{
+          title: 'Solicitudes',
+          tabBarLabel: 'Solicitudes',
+        }}
+      />
+      <Tab.Screen
+        name="CashRegister"
+        component={CashRegisterScreen}
+        options={{
+          title: 'Arqueo',
+          tabBarLabel: 'Arqueo',
         }}
       />
       <Tab.Screen
@@ -111,6 +150,32 @@ const AppNavigator = () => {
           name="Reports"
           component={ReportsScreen}
           options={{ title: 'Reportes' }}
+        />
+        <Stack.Screen
+          name="ClientForm"
+          component={ClientFormScreen}
+          options={({ route }) => ({
+            title: route.params?.clientId ? 'Editar Cliente' : 'Nuevo Cliente'
+          })}
+        />
+        <Stack.Screen
+          name="VendorForm"
+          component={VendorFormScreen}
+          options={({ route }) => ({
+            title: route.params?.vendorId ? 'Editar Vendedor' : 'Nuevo Vendedor'
+          })}
+        />
+        <Stack.Screen
+          name="LoanRequestForm"
+          component={LoanRequestFormScreen}
+          options={({ route }) => ({
+            title: route.params?.requestId ? 'Editar Solicitud' : 'Nueva Solicitud'
+          })}
+        />
+        <Stack.Screen
+          name="CashRegister"
+          component={CashRegisterScreen}
+          options={{ title: 'Arqueo de Caja' }}
         />
       </Stack.Navigator>
     </NavigationContainer>
