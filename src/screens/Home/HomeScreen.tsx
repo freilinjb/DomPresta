@@ -551,4 +551,4 @@ const s = StyleSheet.create({
   },
   navItem: { flex: 1, alignItems: 'center', gap: 2 },
   navLbl: { fontSize: 9, fontWeight: '600', color: C.textMuted },
-});x
+});
