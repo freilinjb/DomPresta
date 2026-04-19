@@ -22,6 +22,7 @@ import { CashRegisterScreen } from '../screens/CashRegister/CashRegisterScreen';
 import { COLORS } from '../constants';
 import { RootStackParamList, MainTabParamList, DrawerParamList } from './types';
 import CustomTabBar from './CustomTabBar';
+import ScreenWithTab from './ScreenWithTab';
 
 const Stack = createStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -90,11 +91,12 @@ const MainDrawer = () => {
         options={{
           title: 'Inicio',
           drawerLabel: 'Inicio',
+          headerShown: false,
         }}
       />
       <Drawer.Screen
         name="Vendors"
-        component={VendorsScreen}
+        component={ScreenWithTab(VendorsScreen)}
         options={{
           title: 'Vendedores',
           drawerLabel: 'Vendedores',
@@ -102,7 +104,7 @@ const MainDrawer = () => {
       />
       <Drawer.Screen
         name="LoanRequests"
-        component={LoanRequestsScreen}
+        component={ScreenWithTab(LoanRequestsScreen)}
         options={{
           title: 'Solicitudes',
           drawerLabel: 'Solicitudes',
@@ -110,7 +112,7 @@ const MainDrawer = () => {
       />
       <Drawer.Screen
         name="CashRegister"
-        component={CashRegisterScreen}
+        component={ScreenWithTab(CashRegisterScreen)}
         options={{
           title: 'Arqueo',
           drawerLabel: 'Arqueo',
@@ -118,7 +120,7 @@ const MainDrawer = () => {
       />
       <Drawer.Screen
         name="Settings"
-        component={SettingsScreen}
+        component={ScreenWithTab(SettingsScreen)}
         options={{
           title: 'Configuraciones',
           drawerLabel: 'Ajustes',
@@ -126,7 +128,7 @@ const MainDrawer = () => {
       />
       <Drawer.Screen
         name="Reports"
-        component={ReportsScreen}
+        component={ScreenWithTab(ReportsScreen)}
         options={{
           title: 'Reportes',
           drawerLabel: 'Reportes',
