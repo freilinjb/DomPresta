@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-
 import {
   View,
   Text,
@@ -14,8 +13,8 @@ import {
   ActivityIndicator,
   Switch,
   Animated as RNAnimated,
-  Pressable,
   Modal,
+  Dimensions,
 } from 'react-native';
 import { RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -23,16 +22,47 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import Animated, {
   FadeInDown,
-  FadeInRight,
-  SlideInRight,
+  FadeIn,
   ZoomIn,
-  ZoomOut,
-  Layout,
+  SlideInDown,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
-import { COLORS } from '../../constants';
+import { Ionicons } from '@expo/vector-icons';
+import { Picker } from '@react-native-picker/picker';
 import { RootStackParamList } from '../../navigation/types';
+
+const { width: SW } = Dimensions.get('window');
+
+// ─── Design Tokens (Unificado con LoanRequestFormScreen) ──────────
+const C = {
+  brand: '#1a0533',
+  brandMid: '#3d0f7a',
+  brandVibrant: '#6d28d9',
+  brandLight: '#8b5cf6',
+  brandPale: '#ede9fe',
+  brandFaint: '#f5f3ff',
+  bg: '#f8f7fc',
+  surface: '#ffffff',
+  border: 'rgba(109,40,217,0.08)',
+  borderStrong: 'rgba(109,40,217,0.15)',
+  text: '#0f0a1e',
+  textSec: '#4a4560',
+  textMuted: '#9591a8',
+  textPlaceholder: '#b5b0c8',
+  success: '#059669',
+  successMid: '#10b981',
+  successBg: '#ecfdf5',
+  warning: '#b45309',
+  warningMid: '#d97706',
+  warningBg: '#fffbeb',
+  danger: '#b91c1c',
+  dangerMid: '#dc2626',
+  dangerBg: '#fef2f2',
+  info: '#0369a1',
+  infoMid: '#0284c7',
+  infoBg: '#f0f9ff',
+  shadow: 'rgba(109,40,217,0.12)',
+};
 
 type ClientFormRouteProp = RouteProp<RootStackParamList, 'ClientForm'>;
 type ClientFormNavigationProp = StackNavigationProp<RootStackParamList, 'ClientForm'>;
@@ -42,1434 +72,562 @@ interface ClientFormScreenProps {
   navigation: ClientFormNavigationProp;
 }
 
-// ─── Theme ────────────────────────────────────────────────────────
-const C = {
-  primary: '#5b21b6',
-  primary2: '#7c3aed',
-  primary3: '#a78bfa',
-  primary4: '#ddd6fe',
-  primary5: '#f5f3ff',
-  bg: '#f5f3ff',
-  white: '#ffffff',
-  text: '#1e1b4b',
-  textSub: '#64748b',
-  textMuted: '#94a3b8',
-  border: 'rgba(0,0,0,0.06)',
-  success: '#059669',
-  successBg: '#ecfdf5',
-  warning: '#d97706',
-  warningBg: '#fffbeb',
-  danger: '#dc2626',
-  dangerBg: '#fef2f2',
-  info: '#0284c7',
-  infoBg: '#f0f9ff',
-};
-
 // ─── Tipos ─────────────────────────────────────────────────────────
 interface ClientFormData {
-  // Información personal
   firstName: string;
   lastName: string;
   email: string;
   phone: string;
   secondaryPhone: string;
-  
-  // Identificación
   documentType: 'cedula' | 'passport' | 'rnc';
   documentNumber: string;
-  
-  // Información financiera
   monthlyIncome: string;
   occupation: string;
   employer: string;
   yearsEmployed: string;
-  
-  // Dirección
   address: string;
   city: string;
   province: string;
   postalCode: string;
-  
-  // Referencias
   reference1Name: string;
   reference1Phone: string;
   reference1Relationship: string;
   reference2Name: string;
   reference2Phone: string;
   reference2Relationship: string;
-  
-  // Preferencias
   preferredContact: 'phone' | 'email' | 'whatsapp';
   receiveNotifications: boolean;
   receivePromotions: boolean;
-  
-  // Notas
   notes: string;
 }
 
-interface FormSection {
-  id: string;
-  title: string;
-  icon: string;
-  isExpanded: boolean;
-}
+const AVATAR_PALETTES: [string, string][] = [
+  ['#7c3aed', '#4f46e5'], ['#8b5cf6', '#06b6d4'], ['#f87171', '#f59e0b'],
+  ['#059669', '#0891b2'], ['#7c3aed', '#059669'], ['#a78bfa', '#f59e0b'],
+];
 
-// ─── Input Component ───────────────────────────────────────────────
-interface InputFieldProps {
-  label: string;
-  value: string;
-  onChangeText: (text: string) => void;
-  placeholder: string;
-  icon: string;
-  keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'numeric';
-  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
-  error?: string;
-  required?: boolean;
-  editable?: boolean;
-  multiline?: boolean;
-  numberOfLines?: number;
-  maxLength?: number;
-  suffix?: string;
-  onPress?: () => void;
-}
+const DOCUMENT_TYPES = [
+  { id: 'cedula', name: 'Cédula', icon: 'card-outline' },
+  { id: 'passport', name: 'Pasaporte', icon: 'airplane-outline' },
+  { id: 'rnc', name: 'RNC', icon: 'business-outline' },
+];
 
-const InputField: React.FC<InputFieldProps> = ({
-  label,
-  value,
-  onChangeText,
-  placeholder,
-  icon,
-  keyboardType = 'default',
-  autoCapitalize = 'sentences',
-  error,
-  required,
-  editable = true,
-  multiline = false,
-  numberOfLines = 1,
-  maxLength,
-  suffix,
-  onPress,
-}) => {
-  const [isFocused, setIsFocused] = useState(false);
-  const shakeAnim = useRef(new RNAnimated.Value(0)).current;
+const CONTACT_METHODS = [
+  { id: 'phone', name: 'Teléfono', icon: 'call-outline' },
+  { id: 'whatsapp', name: 'WhatsApp', icon: 'logo-whatsapp' },
+  { id: 'email', name: 'Email', icon: 'mail-outline' },
+];
+
+// ─── FieldInput (Estilo exacto de LoanRequestFormScreen) ──────────
+const FieldInput: React.FC<{
+  label: string; value: string; onChangeText: (t: string) => void;
+  placeholder: string; keyboardType?: any; error?: string; required?: boolean;
+  prefix?: string; suffix?: string; editable?: boolean; multiline?: boolean;
+  numberOfLines?: number; helper?: string; icon?: string; iconColor?: string;
+}> = ({ label, value, onChangeText, placeholder, keyboardType = 'default', error, required, prefix, editable = true, multiline, numberOfLines = 1, helper, icon, iconColor }) => {
+  const [focused, setFocused] = useState(false);
+  const shake = useRef(new RNAnimated.Value(0)).current;
+  const focusAnim = useRef(new RNAnimated.Value(0)).current;
 
   useEffect(() => {
     if (error) {
       RNAnimated.sequence([
-        RNAnimated.timing(shakeAnim, { toValue: 10, duration: 50, useNativeDriver: true }),
-        RNAnimated.timing(shakeAnim, { toValue: -10, duration: 50, useNativeDriver: true }),
-        RNAnimated.timing(shakeAnim, { toValue: 10, duration: 50, useNativeDriver: true }),
-        RNAnimated.timing(shakeAnim, { toValue: 0, duration: 50, useNativeDriver: true }),
+        RNAnimated.timing(shake, { toValue: 6, duration: 60, useNativeDriver: true }),
+        RNAnimated.timing(shake, { toValue: -6, duration: 60, useNativeDriver: true }),
+        RNAnimated.timing(shake, { toValue: 4, duration: 60, useNativeDriver: true }),
+        RNAnimated.timing(shake, { toValue: 0, duration: 60, useNativeDriver: true }),
       ]).start();
     }
   }, [error]);
 
+  useEffect(() => {
+    RNAnimated.timing(focusAnim, { toValue: focused ? 1 : 0, duration: 180, useNativeDriver: false }).start();
+  }, [focused]);
+
+  const borderColor = focusAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [error ? C.dangerMid : C.border, error ? C.dangerMid : C.brandVibrant] as any,
+  });
+  const shadowOpacity = focusAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.12] });
+
   return (
-    <RNAnimated.View style={{ transform: [{ translateX: shakeAnim }] }}>
-      <View style={inputS.container}>
-        <View style={inputS.labelContainer}>
-          <Ionicons name={icon as any} size={16} color={isFocused ? C.primary2 : C.textMuted} />
-          <Text style={inputS.label}>
-            {label} {required && <Text style={inputS.required}>*</Text>}
-          </Text>
-        </View>
-        <Pressable onPress={onPress} disabled={!onPress}>
-          <View style={[
-            inputS.inputWrapper,
-            isFocused && inputS.inputFocused,
-            error && inputS.inputError,
-            !editable && inputS.inputDisabled,
-          ]}>
-            <TextInput
-              style={[inputS.input, multiline && inputS.textArea]}
-              value={value}
-              onChangeText={onChangeText}
-              placeholder={placeholder}
-              placeholderTextColor={C.textMuted}
-              keyboardType={keyboardType}
-              autoCapitalize={autoCapitalize}
-              editable={editable}
-              multiline={multiline}
-              numberOfLines={numberOfLines}
-              maxLength={maxLength}
-              onFocus={() => setIsFocused(true)}
-              onBlur={() => setIsFocused(false)}
-            />
-            {suffix && (
-              <Text style={inputS.suffix}>{suffix}</Text>
-            )}
-            {onPress && (
-              <Ionicons name="chevron-down" size={18} color={C.textMuted} />
-            )}
-          </View>
-        </Pressable>
-        {error && (
-          <Animated.Text entering={FadeInDown} style={inputS.errorText}>
-            {error}
-          </Animated.Text>
-        )}
+    <RNAnimated.View style={[fieldS.wrap, { transform: [{ translateX: shake }] }]}>
+      <View style={fieldS.labelRow}>
+        {icon && <Ionicons name={icon as any} size={14} color={focused ? (iconColor || C.brandVibrant) : C.textMuted} />}
+        <Text style={fieldS.label}>{label}{required && <Text style={{ color: C.dangerMid }}> *</Text>}</Text>
       </View>
+      <RNAnimated.View style={[fieldS.inputBox, { borderColor, shadowColor: C.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity, shadowRadius: 6, elevation: focused ? 2 : 0 }, !editable && fieldS.disabled]}>
+        {prefix && <Text style={fieldS.prefix}>{prefix}</Text>}
+        <TextInput
+          style={[fieldS.input, multiline && { height: numberOfLines * 22 + 20, textAlignVertical: 'top' }]}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={C.textPlaceholder}
+          keyboardType={keyboardType}
+          editable={editable}
+          multiline={multiline}
+          numberOfLines={numberOfLines}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+        />
+      </RNAnimated.View>
+      {(error || helper) && (
+        <View style={fieldS.helperRow}>
+          <Ionicons name={error ? 'alert-circle' : 'information-circle'} size={12} color={error ? C.dangerMid : C.textMuted} />
+          <Text style={[fieldS.helperText, error && { color: C.dangerMid }]}>{error || helper}</Text>
+        </View>
+      )}
     </RNAnimated.View>
   );
 };
 
-const inputS = StyleSheet.create({
-  container: {
-    marginBottom: 16,
-  },
-  labelContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 6,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: C.text,
-    letterSpacing: -0.2,
-  },
-  required: {
-    color: C.danger,
-  },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: C.white,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    borderWidth: 1.5,
-    borderColor: C.border,
-    minHeight: 48,
-  },
-  inputFocused: {
-    borderColor: C.primary2,
-    backgroundColor: C.white,
-  },
-  inputError: {
-    borderColor: C.danger,
-  },
-  inputDisabled: {
-    backgroundColor: '#f8f9fa',
-    opacity: 0.7,
-  },
-  input: {
-    flex: 1,
-    fontSize: 14,
-    color: C.text,
-    paddingVertical: 12,
-  },
-  textArea: {
-    height: 80,
-    textAlignVertical: 'top',
-  },
-  suffix: {
-    fontSize: 13,
-    color: C.textMuted,
-    marginLeft: 8,
-    fontWeight: '500',
-  },
-  errorText: {
-    fontSize: 11,
-    color: C.danger,
-    marginTop: 4,
-    marginLeft: 4,
-    fontWeight: '500',
-  },
+const fieldS = StyleSheet.create({
+  wrap: { marginBottom: 14 },
+  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 7 },
+  label: { fontSize: 12, fontWeight: '700', color: C.textSec, letterSpacing: 0.1 },
+  inputBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.surface, borderRadius: 13, paddingHorizontal: 13, borderWidth: 1.5, minHeight: 48 },
+  disabled: { backgroundColor: '#f4f3f8', opacity: 0.7 },
+  prefix: { fontSize: 14, color: C.textMuted, marginRight: 6, fontWeight: '600' },
+  input: { flex: 1, fontSize: 14, color: C.text, paddingVertical: 13, fontWeight: '500' },
+  helperRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 5, marginLeft: 2 },
+  helperText: { fontSize: 11, color: C.textMuted },
 });
 
-// ─── SectionHeader Component ────────────────────────────────────────
-const SectionHeader: React.FC<{
-  title: string;
-  icon: string;
-  isExpanded: boolean;
-  onToggle: () => void;
-  completed?: boolean;
-}> = ({ title, icon, isExpanded, onToggle, completed }) => (
-  <TouchableOpacity
-    style={sectionS.header}
-    onPress={() => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      onToggle();
-    }}
-    activeOpacity={0.7}
-  >
-    <View style={sectionS.headerLeft}>
-      <View style={[sectionS.iconBg, completed && sectionS.iconBgCompleted]}>
-        <Ionicons
-          name={icon as any}
-          size={18}
-          color={completed ? C.white : C.primary2}
-        />
+// ─── PickerField (Estilo exacto de LoanRequestFormScreen) ─────────
+const PickerField: React.FC<{
+  label: string; value: string; onValueChange: (v: string) => void;
+  items: { label: string; value: string }[]; error?: string; required?: boolean; icon?: string; placeholder?: string;
+}> = ({ label, value, onValueChange, items, error, required, icon, placeholder }) => (
+  <View style={pickerS.wrap}>
+    <View style={fieldS.labelRow}>
+      {icon && <Ionicons name={icon as any} size={14} color={C.textMuted} />}
+      <Text style={fieldS.label}>{label}{required && <Text style={{ color: C.dangerMid }}> *</Text>}</Text>
+    </View>
+    <View style={[pickerS.box, error && { borderColor: C.dangerMid }]}>
+      <Picker selectedValue={value} onValueChange={onValueChange} style={pickerS.picker} dropdownIconColor={C.textMuted}>
+        <Picker.Item label={placeholder || `Seleccione ${label.toLowerCase()}`} value="" color={C.textPlaceholder} />
+        {items.map(i => <Picker.Item key={i.value} label={i.label} value={i.value} />)}
+      </Picker>
+    </View>
+    {error && (
+      <View style={fieldS.helperRow}>
+        <Ionicons name="alert-circle" size={12} color={C.dangerMid} />
+        <Text style={[fieldS.helperText, { color: C.dangerMid }]}>{error}</Text>
       </View>
-      <Text style={sectionS.title}>{title}</Text>
-      {completed && (
-        <View style={sectionS.completedBadge}>
-          <Ionicons name="checkmark" size={12} color={C.success} />
-        </View>
-      )}
-    </View>
-    <Ionicons
-      name={isExpanded ? 'chevron-up' : 'chevron-down'}
-      size={20}
-      color={C.textMuted}
-    />
-  </TouchableOpacity>
-);
-
-const sectionS = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 4,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  iconBg: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: C.primary5,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconBgCompleted: {
-    backgroundColor: C.success,
-  },
-  title: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: C.text,
-  },
-  completedBadge: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: C.successBg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 6,
-  },
-});
-
-// ─── DocumentTypeModal Component ────────────────────────────────────
-const DocumentTypeModal: React.FC<{
-  visible: boolean;
-  onClose: () => void;
-  onSelect: (type: 'cedula' | 'passport' | 'rnc') => void;
-  currentType: string;
-}> = ({ visible, onClose, onSelect, currentType }) => {
-  const types = [
-    { value: 'cedula' as const, label: 'Cédula', icon: 'card-outline' },
-    { value: 'passport' as const, label: 'Pasaporte', icon: 'airplane-outline' },
-    { value: 'rnc' as const, label: 'RNC', icon: 'business-outline' },
-  ];
-
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <Pressable style={modalS.overlay} onPress={onClose}>
-        <Animated.View entering={ZoomIn.duration(200)} style={modalS.content}>
-          <View style={modalS.header}>
-            <Text style={modalS.title}>Tipo de documento</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={24} color={C.text} />
-            </TouchableOpacity>
-          </View>
-          {types.map((type) => (
-            <TouchableOpacity
-              key={type.value}
-              style={[modalS.option, currentType === type.value && modalS.optionActive]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                onSelect(type.value);
-                onClose();
-              }}
-            >
-              <View style={modalS.optionLeft}>
-                <View style={modalS.optionIcon}>
-                  <Ionicons name={type.icon as any} size={20} color={currentType === type.value ? C.primary2 : C.textSub} />
-                </View>
-                <Text style={[modalS.optionLabel, currentType === type.value && modalS.optionLabelActive]}>
-                  {type.label}
-                </Text>
-              </View>
-              {currentType === type.value && (
-                <Ionicons name="checkmark-circle" size={20} color={C.primary2} />
-              )}
-            </TouchableOpacity>
-          ))}
-        </Animated.View>
-      </Pressable>
-    </Modal>
-  );
-};
-
-// ─── ContactMethodModal Component ───────────────────────────────────
-const ContactMethodModal: React.FC<{
-  visible: boolean;
-  onClose: () => void;
-  onSelect: (method: 'phone' | 'email' | 'whatsapp') => void;
-  currentMethod: string;
-}> = ({ visible, onClose, onSelect, currentMethod }) => {
-  const methods = [
-    { value: 'phone' as const, label: 'Teléfono', icon: 'call-outline' },
-    { value: 'whatsapp' as const, label: 'WhatsApp', icon: 'logo-whatsapp' },
-    { value: 'email' as const, label: 'Email', icon: 'mail-outline' },
-  ];
-
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <Pressable style={modalS.overlay} onPress={onClose}>
-        <Animated.View entering={ZoomIn.duration(200)} style={modalS.content}>
-          <View style={modalS.header}>
-            <Text style={modalS.title}>Método de contacto preferido</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={24} color={C.text} />
-            </TouchableOpacity>
-          </View>
-          {methods.map((method) => (
-            <TouchableOpacity
-              key={method.value}
-              style={[modalS.option, currentMethod === method.value && modalS.optionActive]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                onSelect(method.value);
-                onClose();
-              }}
-            >
-              <View style={modalS.optionLeft}>
-                <View style={modalS.optionIcon}>
-                  <Ionicons name={method.icon as any} size={20} color={currentMethod === method.value ? C.primary2 : C.textSub} />
-                </View>
-                <Text style={[modalS.optionLabel, currentMethod === method.value && modalS.optionLabelActive]}>
-                  {method.label}
-                </Text>
-              </View>
-              {currentMethod === method.value && (
-                <Ionicons name="checkmark-circle" size={20} color={C.primary2} />
-              )}
-            </TouchableOpacity>
-          ))}
-        </Animated.View>
-      </Pressable>
-    </Modal>
-  );
-};
-
-const modalS = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  content: {
-    backgroundColor: C.white,
-    borderRadius: 24,
-    padding: 20,
-    width: '100%',
-    maxWidth: 350,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: C.text,
-  },
-  option: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-  },
-  optionActive: {
-    backgroundColor: C.primary5,
-  },
-  optionLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  optionIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: C.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  optionLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: C.textSub,
-  },
-  optionLabelActive: {
-    color: C.primary2,
-  },
-});
-
-// ─── ProgressBar Component ──────────────────────────────────────────
-const ProgressBar: React.FC<{ progress: number }> = ({ progress }) => (
-  <View style={progressS.container}>
-    <View style={progressS.bar}>
-      <Animated.View
-        style={[
-          progressS.fill,
-          { width: `${progress}%` },
-        ]}
-      />
-    </View>
-    <Text style={progressS.text}>{Math.round(progress)}% completado</Text>
+    )}
   </View>
 );
 
-const progressS = StyleSheet.create({
-  container: {
-    marginBottom: 20,
-  },
-  bar: {
-    height: 6,
-    backgroundColor: C.primary4,
-    borderRadius: 3,
-    overflow: 'hidden',
-    marginBottom: 6,
-  },
-  fill: {
-    height: '100%',
-    backgroundColor: C.primary2,
-    borderRadius: 3,
-  },
-  text: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: C.textSub,
-    textAlign: 'right',
-  },
+const pickerS = StyleSheet.create({
+  wrap: { marginBottom: 14 },
+  box: { backgroundColor: C.surface, borderRadius: 13, borderWidth: 1.5, borderColor: C.border, overflow: 'hidden' },
+  picker: { height: 50, color: C.text },
+});
+
+// ─── SectionCard (Estilo exacto de LoanRequestFormScreen) ─────────
+const SectionCard: React.FC<{
+  title: string; icon: string; children: React.ReactNode;
+  expanded: boolean; onToggle: () => void; badge?: string | number; badgeColor?: string;
+  index?: number;
+}> = ({ title, icon, children, expanded, onToggle, badge, badgeColor, index = 0 }) => {
+  const rotateAnim = useRef(new RNAnimated.Value(expanded ? 1 : 0)).current;
+
+  useEffect(() => {
+    RNAnimated.timing(rotateAnim, { toValue: expanded ? 1 : 0, duration: 220, useNativeDriver: true }).start();
+  }, [expanded]);
+
+  const rotate = rotateAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] });
+
+  return (
+    <Animated.View entering={FadeInDown.delay(60 + index * 40).springify()} style={secS.card}>
+      <TouchableOpacity style={secS.header} onPress={onToggle} activeOpacity={0.75}>
+        <View style={secS.iconWrap}>
+          <Ionicons name={icon as any} size={17} color={C.brandVibrant} />
+        </View>
+        <Text style={secS.title}>{title}</Text>
+        {badge !== undefined && (
+          <View style={[secS.badge, { backgroundColor: badgeColor || C.brandFaint }]}>
+            <Text style={[secS.badgeText, { color: badgeColor ? '#fff' : C.brandVibrant }]}>{badge}</Text>
+          </View>
+        )}
+        <RNAnimated.View style={{ transform: [{ rotate }], marginLeft: 'auto' }}>
+          <Ionicons name="chevron-down" size={18} color={C.textMuted} />
+        </RNAnimated.View>
+      </TouchableOpacity>
+      {expanded && (
+        <Animated.View entering={FadeIn.duration(180)} style={secS.body}>
+          <View style={secS.divider} />
+          {children}
+        </Animated.View>
+      )}
+    </Animated.View>
+  );
+};
+
+const secS = StyleSheet.create({
+  card: { backgroundColor: C.surface, borderRadius: 18, marginBottom: 10, borderWidth: 1, borderColor: C.border, overflow: 'hidden', shadowColor: C.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 1 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 16 },
+  iconWrap: { width: 36, height: 36, borderRadius: 10, backgroundColor: C.brandFaint, alignItems: 'center', justifyContent: 'center' },
+  title: { fontSize: 14, fontWeight: '800', color: C.text, letterSpacing: -0.2 },
+  badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+  badgeText: { fontSize: 11, fontWeight: '800' },
+  divider: { height: 1, backgroundColor: C.border, marginHorizontal: 16, marginBottom: 16 },
+  body: { paddingHorizontal: 16, paddingBottom: 16 },
+});
+
+// ─── ToggleRow (Estilo exacto de LoanRequestFormScreen) ───────────
+const ToggleRow: React.FC<{ label: string; sub?: string; icon: string; value: boolean; onChange: (v: boolean) => void }> = ({ label, sub, icon, value, onChange }) => (
+  <View style={toggleS.row}>
+    <View style={[toggleS.iconWrap, { backgroundColor: value ? C.brandFaint : '#f4f3f8' }]}>
+      <Ionicons name={icon as any} size={16} color={value ? C.brandVibrant : C.textMuted} />
+    </View>
+    <View style={{ flex: 1 }}>
+      <Text style={toggleS.label}>{label}</Text>
+      {sub && <Text style={toggleS.sub}>{sub}</Text>}
+    </View>
+    <Switch
+      value={value}
+      onValueChange={(v) => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onChange(v); }}
+      trackColor={{ false: '#e5e3ef', true: C.brandLight }}
+      thumbColor={value ? C.brandVibrant : '#fff'}
+      ios_backgroundColor="#e5e3ef"
+    />
+  </View>
+);
+
+const toggleS = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
+  iconWrap: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  label: { fontSize: 14, fontWeight: '600', color: C.text },
+  sub: { fontSize: 11, color: C.textMuted, marginTop: 1 },
+});
+
+// ─── Avatar (Estilo unificado) ────────────────────────────────────
+const Avatar: React.FC<{ name: string; index: number; size?: number }> = ({ name, index, size = 70 }) => {
+  const initials = name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() || '?';
+  const [c1, c2] = AVATAR_PALETTES[index % AVATAR_PALETTES.length];
+  const radius = size * 0.28;
+  return (
+    <View style={{ width: size, height: size, borderRadius: radius, overflow: 'hidden', borderWidth: 3, borderColor: C.surface }}>
+      <LinearGradient colors={[c1, c2]} style={StyleSheet.absoluteFillObject} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ color: 'white', fontSize: size * 0.32, fontWeight: '800' }}>{initials}</Text>
+      </View>
+    </View>
+  );
+};
+
+// ─── ProgressBar (Estilo exacto de LoanRequestFormScreen) ─────────
+const ProgressBar: React.FC<{ current: number; total: number }> = ({ current, total }) => (
+  <View style={progS.wrap}>
+    <View style={progS.track}>
+      <View style={[progS.fill, { width: `${((current) / total) * 100}%` as any }]} />
+    </View>
+    <Text style={progS.label}>{current}/{total} secciones</Text>
+  </View>
+);
+
+const progS = StyleSheet.create({
+  wrap: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, paddingBottom: 14 },
+  track: { flex: 1, height: 4, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 2, overflow: 'hidden' },
+  fill: { height: '100%', backgroundColor: '#fff', borderRadius: 2 },
+  label: { fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: '600', minWidth: 60, textAlign: 'right' },
 });
 
 // ─── Main Component ─────────────────────────────────────────────────
 export const ClientFormScreen: React.FC<ClientFormScreenProps> = ({ route, navigation }) => {
-  const { clientId } = route.params || {};
+  const { clientId } = (route.params || {}) as any;
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const scrollY = useRef(new RNAnimated.Value(0)).current;
-  
-  // Estado del formulario
-  const [formData, setFormData] = useState<ClientFormData>({
-    firstName: '',
-    lastName: '',
-    email: '',
-    phone: '',
-    secondaryPhone: '',
-    documentType: 'cedula',
-    documentNumber: '',
-    monthlyIncome: '',
-    occupation: '',
-    employer: '',
-    yearsEmployed: '',
-    address: '',
-    city: '',
-    province: '',
-    postalCode: '',
-    reference1Name: '',
-    reference1Phone: '',
-    reference1Relationship: '',
-    reference2Name: '',
-    reference2Phone: '',
-    reference2Relationship: '',
-    preferredContact: 'whatsapp',
-    receiveNotifications: true,
-    receivePromotions: false,
-    notes: '',
+
+  const [sections, setSections] = useState({
+    personal: true, identification: false, financial: false, address: false,
+    references: false, preferences: false, notes: false,
   });
 
-  // Estado de errores
+  const [form, setForm] = useState<ClientFormData>({
+    firstName: '', lastName: '', email: '', phone: '', secondaryPhone: '',
+    documentType: 'cedula', documentNumber: '', monthlyIncome: '', occupation: '',
+    employer: '', yearsEmployed: '', address: '', city: '', province: '', postalCode: '',
+    reference1Name: '', reference1Phone: '', reference1Relationship: '',
+    reference2Name: '', reference2Phone: '', reference2Relationship: '',
+    preferredContact: 'whatsapp', receiveNotifications: true, receivePromotions: false, notes: '',
+  });
+
   const [errors, setErrors] = useState<Partial<Record<keyof ClientFormData, string>>>({});
 
-  // Estado de secciones expandidas
-  const [sections, setSections] = useState<FormSection[]>([
-    { id: 'personal', title: 'Información Personal', icon: 'person-outline', isExpanded: true },
-    { id: 'identification', title: 'Identificación', icon: 'card-outline', isExpanded: false },
-    { id: 'financial', title: 'Información Financiera', icon: 'cash-outline', isExpanded: false },
-    { id: 'address', title: 'Dirección', icon: 'location-outline', isExpanded: false },
-    { id: 'references', title: 'Referencias', icon: 'people-outline', isExpanded: false },
-    { id: 'preferences', title: 'Preferencias', icon: 'settings-outline', isExpanded: false },
-    { id: 'notes', title: 'Notas Adicionales', icon: 'document-text-outline', isExpanded: false },
-  ]);
-
-  // Estado de modales
-  const [showDocTypeModal, setShowDocTypeModal] = useState(false);
-  const [showContactModal, setShowContactModal] = useState(false);
-
-  // Datos mock para carga
   const MOCK_CLIENT_DATA: ClientFormData = {
-    firstName: 'Juan',
-    lastName: 'Pérez González',
-    email: 'juan.perez@email.com',
-    phone: '809-555-1234',
-    secondaryPhone: '829-555-5678',
-    documentType: 'cedula',
-    documentNumber: '402-1234567-8',
-    monthlyIncome: '45000',
-    occupation: 'Ingeniero de Software',
-    employer: 'Tech Solutions SRL',
-    yearsEmployed: '5',
-    address: 'Calle Principal #123',
-    city: 'Santo Domingo',
-    province: 'Distrito Nacional',
-    postalCode: '10101',
-    reference1Name: 'María Rodríguez',
-    reference1Phone: '809-555-8765',
-    reference1Relationship: 'Hermana',
-    reference2Name: 'Carlos Méndez',
-    reference2Phone: '809-555-4321',
-    reference2Relationship: 'Amigo',
-    preferredContact: 'whatsapp',
-    receiveNotifications: true,
-    receivePromotions: true,
+    firstName: 'Juan', lastName: 'Pérez González', email: 'juan.perez@email.com',
+    phone: '809-555-1234', secondaryPhone: '829-555-5678', documentType: 'cedula',
+    documentNumber: '402-1234567-8', monthlyIncome: '45000', occupation: 'Ingeniero de Software',
+    employer: 'Tech Solutions SRL', yearsEmployed: '5', address: 'Calle Principal #123',
+    city: 'Santo Domingo', province: 'Distrito Nacional', postalCode: '10101',
+    reference1Name: 'María Rodríguez', reference1Phone: '809-555-8765', reference1Relationship: 'Hermana',
+    reference2Name: 'Carlos Méndez', reference2Phone: '809-555-4321', reference2Relationship: 'Amigo',
+    preferredContact: 'whatsapp', receiveNotifications: true, receivePromotions: true,
     notes: 'Cliente preferencial, buen historial de pagos.',
   };
 
   useEffect(() => {
-    if (clientId) {
-      loadClient(clientId);
-    }
-    
-    navigation.setOptions({
-      headerShown: false,
-    });
-  }, [clientId]);
+    navigation.setOptions({ headerShown: false });
+    if (clientId) loadClient();
+  }, []);
 
-  const loadClient = async (id: string) => {
+  const loadClient = async () => {
     setLoading(true);
-    try {
-      // Simular carga de datos
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setFormData(MOCK_CLIENT_DATA);
-    } catch (error) {
-      Alert.alert('Error', 'No se pudo cargar el cliente');
-    } finally {
-      setLoading(false);
-    }
+    await new Promise(r => setTimeout(r, 800));
+    setForm(MOCK_CLIENT_DATA);
+    setLoading(false);
   };
 
-  const updateFormData = <K extends keyof ClientFormData>(key: K, value: ClientFormData[K]) => {
-    setFormData(prev => ({ ...prev, [key]: value }));
-    // Limpiar error del campo
-    if (errors[key]) {
-      setErrors(prev => ({ ...prev, [key]: undefined }));
-    }
+  const set = <K extends keyof ClientFormData>(key: K, value: ClientFormData[K]) => {
+    setForm(prev => ({ ...prev, [key]: value }));
+    if (errors[key]) setErrors(prev => ({ ...prev, [key]: undefined }));
   };
 
-  const toggleSection = (sectionId: string) => {
-    setSections(prev =>
-      prev.map(section =>
-        section.id === sectionId
-          ? { ...section, isExpanded: !section.isExpanded }
-          : section
-      )
-    );
+  const toggle = (section: keyof typeof sections) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
 
-  const validateForm = (): boolean => {
-    const newErrors: Partial<Record<keyof ClientFormData, string>> = {};
-
-    // Validaciones básicas
-    if (!formData.firstName.trim()) {
-      newErrors.firstName = 'El nombre es requerido';
-    }
-    if (!formData.lastName.trim()) {
-      newErrors.lastName = 'El apellido es requerido';
-    }
-    if (!formData.email.trim()) {
-      newErrors.email = 'El email es requerido';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = 'Email inválido';
-    }
-    if (!formData.phone.trim()) {
-      newErrors.phone = 'El teléfono es requerido';
-    } else if (!/^[\d\-\s()+]{10,}$/.test(formData.phone)) {
-      newErrors.phone = 'Teléfono inválido (mínimo 10 dígitos)';
-    }
-    if (!formData.documentNumber.trim()) {
-      newErrors.documentNumber = 'El número de documento es requerido';
-    }
-
-    // Validaciones de referencias (si se han ingresado)
-    if (formData.reference1Name && !formData.reference1Phone) {
-      newErrors.reference1Phone = 'Teléfono requerido';
-    }
-    if (formData.reference2Name && !formData.reference2Phone) {
-      newErrors.reference2Phone = 'Teléfono requerido';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+  const validate = (): boolean => {
+    const e: Partial<Record<keyof ClientFormData, string>> = {};
+    if (!form.firstName.trim()) e.firstName = 'Nombre requerido';
+    if (!form.lastName.trim()) e.lastName = 'Apellido requerido';
+    if (!form.email.trim()) e.email = 'Email requerido';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Email inválido';
+    if (!form.phone.trim()) e.phone = 'Teléfono requerido';
+    if (!form.documentNumber.trim()) e.documentNumber = 'Número de documento requerido';
+    if (form.reference1Name && !form.reference1Phone) e.reference1Phone = 'Teléfono requerido';
+    if (form.reference2Name && !form.reference2Phone) e.reference2Phone = 'Teléfono requerido';
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
-  const calculateProgress = (): number => {
-    const fields = [
-      formData.firstName, formData.lastName, formData.email, formData.phone,
-      formData.documentNumber, formData.address, formData.city,
-    ];
-    const filled = fields.filter(f => f && f.trim().length > 0).length;
-    return (filled / fields.length) * 100;
-  };
-
-  const handleSave = async () => {
-    if (!validateForm()) {
+  const handleSubmit = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (!validate()) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert(
-        'Formulario incompleto',
-        'Por favor, completa todos los campos requeridos (*)',
-        [{ text: 'Entendido' }]
-      );
+      const hasPersonalErr = errors.firstName || errors.lastName || errors.email || errors.phone;
+      const hasIdErr = errors.documentNumber;
+      const hasRefErr = errors.reference1Phone || errors.reference2Phone;
+      setSections(prev => ({
+        ...prev,
+        personal: hasPersonalErr ? true : prev.personal,
+        identification: hasIdErr ? true : prev.identification,
+        references: hasRefErr ? true : prev.references,
+      }));
+      Alert.alert('Campos incompletos', 'Revisa los campos marcados en rojo.');
       return;
     }
-
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSaving(true);
-    
     try {
-      // Simular guardado
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
+      await new Promise(r => setTimeout(r, 1400));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
-        '✅ ¡Éxito!',
-        clientId ? 'Cliente actualizado correctamente' : 'Cliente creado correctamente',
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
-      );
-    } catch (error) {
+      Alert.alert('✅ Éxito', clientId ? 'Cliente actualizado.' : 'Cliente creado correctamente.', [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
+    } catch {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Error', 'No se pudo guardar el cliente');
-    } finally {
-      setSaving(false);
-    }
+      Alert.alert('Error', 'No se pudo guardar el cliente.');
+    } finally { setSaving(false); }
   };
 
-  const headerOpacity = scrollY.interpolate({
-    inputRange: [0, 80],
-    outputRange: [0, 1],
-    extrapolate: 'clamp',
-  });
-
-  const getDocumentTypeLabel = () => {
-    const types = { cedula: 'Cédula', passport: 'Pasaporte', rnc: 'RNC' };
-    return types[formData.documentType];
-  };
-
-  const getContactMethodLabel = () => {
-    const methods = { phone: 'Teléfono', email: 'Email', whatsapp: 'WhatsApp' };
-    return methods[formData.preferredContact];
-  };
+  const openSections = Object.values(sections).filter(Boolean).length;
+  const navOpacity = scrollY.interpolate({ inputRange: [0, 70], outputRange: [0, 1], extrapolate: 'clamp' });
+  const fullName = `${form.firstName} ${form.lastName}`.trim() || 'Nuevo Cliente';
+  const getDocLabel = () => DOCUMENT_TYPES.find(d => d.id === form.documentType)?.name || '';
+  const getContactLabel = () => CONTACT_METHODS.find(c => c.id === form.preferredContact)?.name || '';
 
   if (loading) {
     return (
-      <View style={loadS.container}>
-        <LinearGradient
-          colors={[C.primary, '#6d28d9']}
-          style={loadS.gradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        />
-        <Animated.View entering={ZoomIn.duration(400)} style={loadS.content}>
-          <View style={loadS.iconBg}>
-            <Ionicons name="person" size={40} color={C.primary2} />
-          </View>
-          <Text style={loadS.title}>Cargando cliente...</Text>
-          <ActivityIndicator size="large" color={C.primary2} />
-        </Animated.View>
+      <View style={{ flex: 1, backgroundColor: C.bg }}>
+        <LinearGradient colors={[C.brand, C.brandMid, C.brandVibrant]} style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 280 }} />
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <Animated.View entering={ZoomIn.duration(350)} style={{ alignItems: 'center' }}>
+            <View style={{ width: 76, height: 76, borderRadius: 22, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
+              <Ionicons name="person" size={36} color={C.brandVibrant} />
+            </View>
+            <Text style={{ fontSize: 17, fontWeight: '700', color: C.text, marginBottom: 16 }}>Cargando cliente…</Text>
+            <ActivityIndicator size="large" color={C.brandVibrant} />
+          </Animated.View>
+        </View>
       </View>
     );
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-    >
+    <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-      {/* Floating header */}
-      <RNAnimated.View style={[styles.floatNav, { opacity: headerOpacity }]}>
-        <BlurView intensity={50} tint="light" style={StyleSheet.absoluteFillObject} />
-        <View style={styles.floatContent}>
-          <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.goBack()}>
-            <Ionicons name="arrow-back" size={22} color={C.text} />
+      <RNAnimated.View style={[s.floatNav, { opacity: navOpacity }]} pointerEvents="box-none">
+        <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFillObject} />
+        <View style={s.floatRow}>
+          <TouchableOpacity style={s.navBtn} onPress={() => navigation.goBack()}>
+            <Ionicons name="arrow-back" size={20} color={C.text} />
           </TouchableOpacity>
-          <Text style={styles.floatTitle}>
-            {clientId ? 'Editar Cliente' : 'Nuevo Cliente'}
-          </Text>
-          <View style={{ width: 38 }} />
+          <Text style={s.floatTitle}>{clientId ? 'Editar Cliente' : 'Nuevo Cliente'}</Text>
+          <TouchableOpacity style={[s.navBtn, { backgroundColor: saving ? C.brandFaint : C.bg }]} onPress={handleSubmit} disabled={saving}>
+            {saving ? <ActivityIndicator size="small" color={C.brandVibrant} /> : <Ionicons name="checkmark" size={20} color={C.brandVibrant} />}
+          </TouchableOpacity>
         </View>
       </RNAnimated.View>
 
       <RNAnimated.ScrollView
         showsVerticalScrollIndicator={false}
-        onScroll={RNAnimated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: true }
-        )}
+        onScroll={RNAnimated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
         scrollEventThrottle={16}
-        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
       >
-        {/* ── HEADER ───────────────────────────────────── */}
-        <LinearGradient
-          colors={[C.primary, '#6d28d9']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.header}
-        >
-          <View style={styles.topRow}>
-            <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.goBack()}>
-              <Ionicons name="arrow-back" size={22} color="white" />
+        <LinearGradient colors={[C.brand, C.brandMid, C.brandVibrant]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.header}>
+          <View style={s.decCircle1} /><View style={s.decCircle2} />
+          <View style={s.headerTop}>
+            <TouchableOpacity style={s.navBtnWhite} onPress={() => navigation.goBack()}>
+              <Ionicons name="arrow-back" size={20} color="#fff" />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>
-              {clientId ? 'Editar Cliente' : 'Nuevo Cliente'}
-            </Text>
-            <TouchableOpacity style={styles.iconBtn} onPress={handleSave} disabled={saving}>
-              {saving ? (
-                <ActivityIndicator size="small" color="white" />
-              ) : (
-                <Ionicons name="checkmark" size={22} color="white" />
-              )}
+            <View style={{ flex: 1, alignItems: 'center' }}>
+              <Text style={s.headerLabel}>{clientId ? 'EDICIÓN' : 'NUEVO CLIENTE'}</Text>
+              <Text style={s.headerTitle}>{clientId ? 'Editar Cliente' : 'Nuevo Cliente'}</Text>
+            </View>
+            <TouchableOpacity style={[s.navBtnWhite, saving && { opacity: 0.5 }]} onPress={handleSubmit} disabled={saving}>
+              {saving ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="checkmark" size={20} color="#fff" />}
             </TouchableOpacity>
           </View>
 
-          <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.headerInfo}>
-            <View style={styles.avatarContainer}>
-              <LinearGradient
-                colors={['#8b5cf6', '#06b6d4']}
-                style={styles.avatar}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                <Text style={styles.avatarText}>
-                  {formData.firstName ? formData.firstName[0] : '?'}
-                  {formData.lastName ? formData.lastName[0] : ''}
-                </Text>
-              </LinearGradient>
-            </View>
-            <Text style={styles.headerName}>
-              {formData.firstName || formData.lastName
-                ? `${formData.firstName} ${formData.lastName}`
-                : 'Nuevo Cliente'}
-            </Text>
-            {formData.email && (
-              <Text style={styles.headerEmail}>{formData.email}</Text>
-            )}
+          <Animated.View entering={FadeInDown.delay(100).springify()} style={s.avatarContainer}>
+            <Avatar name={fullName} index={0} size={80} />
+            <Text style={s.headerName}>{fullName}</Text>
+            {form.email ? <Text style={s.headerEmail}>{form.email}</Text> : null}
           </Animated.View>
+
+          <ProgressBar current={openSections} total={Object.keys(sections).length} />
         </LinearGradient>
 
-        <View style={styles.body}>
-          {/* ── PROGRESS BAR ────────────────────────────── */}
-          <ProgressBar progress={calculateProgress()} />
+        <View style={s.body}>
+          {/* ─── 1. Personal ──────────────────────────── */}
+          <SectionCard title="Información Personal" icon="person-outline" expanded={sections.personal} onToggle={() => toggle('personal')} badge={form.firstName ? '✓' : undefined} badgeColor={C.successMid} index={0}>
+            <View style={s.row}>
+              <View style={s.half}><FieldInput label="Nombre" value={form.firstName} onChangeText={v => set('firstName', v)} placeholder="Juan" icon="person-outline" error={errors.firstName} required /></View>
+              <View style={s.half}><FieldInput label="Apellido" value={form.lastName} onChangeText={v => set('lastName', v)} placeholder="Pérez" icon="person-outline" error={errors.lastName} required /></View>
+            </View>
+            <FieldInput label="Email" value={form.email} onChangeText={v => set('email', v)} placeholder="cliente@email.com" keyboardType="email-address" icon="mail-outline" error={errors.email} required />
+            <View style={s.row}>
+              <View style={s.half}><FieldInput label="Teléfono principal" value={form.phone} onChangeText={v => set('phone', v)} placeholder="809-555-1234" keyboardType="phone-pad" icon="call-outline" error={errors.phone} required /></View>
+              <View style={s.half}><FieldInput label="Teléfono secundario" value={form.secondaryPhone} onChangeText={v => set('secondaryPhone', v)} placeholder="829-555-5678" keyboardType="phone-pad" icon="call-outline" /></View>
+            </View>
+          </SectionCard>
 
-          {/* ── SECCIONES ───────────────────────────────── */}
-          {sections.map((section, index) => (
-            <Animated.View
-              key={section.id}
-              entering={FadeInDown.delay(150 + index * 30).springify()}
-              style={styles.section}
-            >
-              <SectionHeader
-                title={section.title}
-                icon={section.icon}
-                isExpanded={section.isExpanded}
-                onToggle={() => toggleSection(section.id)}
-              />
+          {/* ─── 2. Identificación ───────────────────── */}
+          <SectionCard title="Identificación" icon="card-outline" expanded={sections.identification} onToggle={() => toggle('identification')} index={1}>
+            <PickerField label="Tipo de documento" value={form.documentType} onValueChange={v => set('documentType', v as any)} items={DOCUMENT_TYPES.map(d => ({ label: d.name, value: d.id }))} icon="card-outline" />
+            <FieldInput label="Número de documento" value={form.documentNumber} onChangeText={v => set('documentNumber', v)} placeholder="402-1234567-8" icon="barcode-outline" error={errors.documentNumber} required />
+          </SectionCard>
 
-              {section.isExpanded && (
-                <Animated.View entering={FadeInDown.duration(200)} style={styles.sectionContent}>
-                  {/* Información Personal */}
-                  {section.id === 'personal' && (
-                    <>
-                      <View style={styles.row}>
-                        <View style={styles.half}>
-                          <InputField
-                            label="Nombre"
-                            value={formData.firstName}
-                            onChangeText={(text) => updateFormData('firstName', text)}
-                            placeholder="Juan"
-                            icon="person-outline"
-                            error={errors.firstName}
-                            required
-                          />
-                        </View>
-                        <View style={styles.half}>
-                          <InputField
-                            label="Apellido"
-                            value={formData.lastName}
-                            onChangeText={(text) => updateFormData('lastName', text)}
-                            placeholder="Pérez"
-                            icon="person-outline"
-                            error={errors.lastName}
-                            required
-                          />
-                        </View>
-                      </View>
-                      <InputField
-                        label="Email"
-                        value={formData.email}
-                        onChangeText={(text) => updateFormData('email', text)}
-                        placeholder="cliente@email.com"
-                        icon="mail-outline"
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        error={errors.email}
-                        required
-                      />
-                      <View style={styles.row}>
-                        <View style={styles.half}>
-                          <InputField
-                            label="Teléfono principal"
-                            value={formData.phone}
-                            onChangeText={(text) => updateFormData('phone', text)}
-                            placeholder="809-555-1234"
-                            icon="call-outline"
-                            keyboardType="phone-pad"
-                            error={errors.phone}
-                            required
-                          />
-                        </View>
-                        <View style={styles.half}>
-                          <InputField
-                            label="Teléfono secundario"
-                            value={formData.secondaryPhone}
-                            onChangeText={(text) => updateFormData('secondaryPhone', text)}
-                            placeholder="829-555-5678"
-                            icon="call-outline"
-                            keyboardType="phone-pad"
-                          />
-                        </View>
-                      </View>
-                    </>
-                  )}
+          {/* ─── 3. Financiera ───────────────────────── */}
+          <SectionCard title="Información Financiera" icon="cash-outline" expanded={sections.financial} onToggle={() => toggle('financial')} index={2}>
+            <FieldInput label="Ingreso mensual" value={form.monthlyIncome} onChangeText={v => set('monthlyIncome', v)} placeholder="45,000" keyboardType="numeric" prefix="RD$" icon="cash-outline" />
+            <FieldInput label="Ocupación" value={form.occupation} onChangeText={v => set('occupation', v)} placeholder="Ingeniero de Software" icon="briefcase-outline" />
+            <FieldInput label="Empleador/Empresa" value={form.employer} onChangeText={v => set('employer', v)} placeholder="Tech Solutions SRL" icon="business-outline" />
+            <FieldInput label="Años en empleo actual" value={form.yearsEmployed} onChangeText={v => set('yearsEmployed', v)} placeholder="5" keyboardType="numeric" suffix="años" icon="time-outline" />
+          </SectionCard>
 
-                  {/* Identificación */}
-                  {section.id === 'identification' && (
-                    <>
-                      <InputField
-                        label="Tipo de documento"
-                        value={getDocumentTypeLabel()}
-                        onChangeText={() => {}}
-                        placeholder="Seleccionar tipo"
-                        icon="card-outline"
-                        onPress={() => setShowDocTypeModal(true)}
-                      />
-                      <InputField
-                        label="Número de documento"
-                        value={formData.documentNumber}
-                        onChangeText={(text) => updateFormData('documentNumber', text)}
-                        placeholder="402-1234567-8"
-                        icon="barcode-outline"
-                        error={errors.documentNumber}
-                        required
-                      />
-                    </>
-                  )}
+          {/* ─── 4. Dirección ────────────────────────── */}
+          <SectionCard title="Dirección" icon="location-outline" expanded={sections.address} onToggle={() => toggle('address')} index={3}>
+            <FieldInput label="Dirección" value={form.address} onChangeText={v => set('address', v)} placeholder="Calle Principal #123" icon="home-outline" multiline numberOfLines={2} />
+            <View style={s.row}>
+              <View style={s.half}><FieldInput label="Ciudad" value={form.city} onChangeText={v => set('city', v)} placeholder="Santo Domingo" icon="location-outline" /></View>
+              <View style={s.half}><FieldInput label="Provincia" value={form.province} onChangeText={v => set('province', v)} placeholder="Distrito Nacional" icon="map-outline" /></View>
+            </View>
+            <FieldInput label="Código Postal" value={form.postalCode} onChangeText={v => set('postalCode', v)} placeholder="10101" keyboardType="numeric" icon="mail-outline" />
+          </SectionCard>
 
-                  {/* Información Financiera */}
-                  {section.id === 'financial' && (
-                    <>
-                      <InputField
-                        label="Ingreso mensual"
-                        value={formData.monthlyIncome}
-                        onChangeText={(text) => updateFormData('monthlyIncome', text)}
-                        placeholder="45,000"
-                        icon="cash-outline"
-                        keyboardType="numeric"
-                        suffix="RD$"
-                      />
-                      <InputField
-                        label="Ocupación"
-                        value={formData.occupation}
-                        onChangeText={(text) => updateFormData('occupation', text)}
-                        placeholder="Ingeniero de Software"
-                        icon="briefcase-outline"
-                      />
-                      <InputField
-                        label="Empleador/Empresa"
-                        value={formData.employer}
-                        onChangeText={(text) => updateFormData('employer', text)}
-                        placeholder="Tech Solutions SRL"
-                        icon="business-outline"
-                      />
-                      <InputField
-                        label="Años en empleo actual"
-                        value={formData.yearsEmployed}
-                        onChangeText={(text) => updateFormData('yearsEmployed', text)}
-                        placeholder="5"
-                        icon="time-outline"
-                        keyboardType="numeric"
-                        suffix="años"
-                      />
-                    </>
-                  )}
+          {/* ─── 5. Referencias ──────────────────────── */}
+          <SectionCard title="Referencias" icon="people-outline" expanded={sections.references} onToggle={() => toggle('references')} index={4}>
+            <Text style={s.subLabel}>Referencia 1</Text>
+            <FieldInput label="Nombre completo" value={form.reference1Name} onChangeText={v => set('reference1Name', v)} placeholder="María Rodríguez" icon="person-outline" />
+            <View style={s.row}>
+              <View style={s.half}><FieldInput label="Teléfono" value={form.reference1Phone} onChangeText={v => set('reference1Phone', v)} placeholder="809-555-8765" keyboardType="phone-pad" icon="call-outline" error={errors.reference1Phone} /></View>
+              <View style={s.half}><FieldInput label="Relación" value={form.reference1Relationship} onChangeText={v => set('reference1Relationship', v)} placeholder="Hermana" icon="git-network-outline" /></View>
+            </View>
+            <Text style={[s.subLabel, { marginTop: 16 }]}>Referencia 2</Text>
+            <FieldInput label="Nombre completo" value={form.reference2Name} onChangeText={v => set('reference2Name', v)} placeholder="Carlos Méndez" icon="person-outline" />
+            <View style={s.row}>
+              <View style={s.half}><FieldInput label="Teléfono" value={form.reference2Phone} onChangeText={v => set('reference2Phone', v)} placeholder="809-555-4321" keyboardType="phone-pad" icon="call-outline" error={errors.reference2Phone} /></View>
+              <View style={s.half}><FieldInput label="Relación" value={form.reference2Relationship} onChangeText={v => set('reference2Relationship', v)} placeholder="Amigo" icon="git-network-outline" /></View>
+            </View>
+          </SectionCard>
 
-                  {/* Dirección */}
-                  {section.id === 'address' && (
-                    <>
-                      <InputField
-                        label="Dirección"
-                        value={formData.address}
-                        onChangeText={(text) => updateFormData('address', text)}
-                        placeholder="Calle Principal #123"
-                        icon="home-outline"
-                        multiline
-                        numberOfLines={2}
-                      />
-                      <View style={styles.row}>
-                        <View style={styles.half}>
-                          <InputField
-                            label="Ciudad"
-                            value={formData.city}
-                            onChangeText={(text) => updateFormData('city', text)}
-                            placeholder="Santo Domingo"
-                            icon="location-outline"
-                          />
-                        </View>
-                        <View style={styles.half}>
-                          <InputField
-                            label="Provincia"
-                            value={formData.province}
-                            onChangeText={(text) => updateFormData('province', text)}
-                            placeholder="Distrito Nacional"
-                            icon="map-outline"
-                          />
-                        </View>
-                      </View>
-                      <InputField
-                        label="Código Postal"
-                        value={formData.postalCode}
-                        onChangeText={(text) => updateFormData('postalCode', text)}
-                        placeholder="10101"
-                        icon="mail-outline"
-                        keyboardType="numeric"
-                        maxLength={5}
-                      />
-                    </>
-                  )}
+          {/* ─── 6. Preferencias ─────────────────────── */}
+          <SectionCard title="Preferencias" icon="settings-outline" expanded={sections.preferences} onToggle={() => toggle('preferences')} index={5}>
+            <PickerField label="Método de contacto preferido" value={form.preferredContact} onValueChange={v => set('preferredContact', v as any)} items={CONTACT_METHODS.map(c => ({ label: c.name, value: c.id }))} icon="chatbubbles-outline" />
+            <View style={s.divider} />
+            <ToggleRow label="Recibir notificaciones" sub="Alertas de pagos y vencimientos" icon="notifications-outline" value={form.receiveNotifications} onChange={v => set('receiveNotifications', v)} />
+            <ToggleRow label="Recibir promociones" sub="Ofertas y novedades" icon="pricetag-outline" value={form.receivePromotions} onChange={v => set('receivePromotions', v)} />
+          </SectionCard>
 
-                  {/* Referencias */}
-                  {section.id === 'references' && (
-                    <>
-                      <Text style={styles.subsectionTitle}>Referencia 1</Text>
-                      <InputField
-                        label="Nombre completo"
-                        value={formData.reference1Name}
-                        onChangeText={(text) => updateFormData('reference1Name', text)}
-                        placeholder="María Rodríguez"
-                        icon="person-outline"
-                      />
-                      <View style={styles.row}>
-                        <View style={styles.half}>
-                          <InputField
-                            label="Teléfono"
-                            value={formData.reference1Phone}
-                            onChangeText={(text) => updateFormData('reference1Phone', text)}
-                            placeholder="809-555-8765"
-                            icon="call-outline"
-                            keyboardType="phone-pad"
-                            error={errors.reference1Phone}
-                          />
-                        </View>
-                        <View style={styles.half}>
-                          <InputField
-                            label="Relación"
-                            value={formData.reference1Relationship}
-                            onChangeText={(text) => updateFormData('reference1Relationship', text)}
-                            placeholder="Hermana"
-                            icon="people-outline"
-                          />
-                        </View>
-                      </View>
+          {/* ─── 7. Notas ────────────────────────────── */}
+          <SectionCard title="Notas Adicionales" icon="document-text-outline" expanded={sections.notes} onToggle={() => toggle('notes')} index={6}>
+            <FieldInput label="Notas" value={form.notes} onChangeText={v => set('notes', v)} placeholder="Información adicional sobre el cliente…" multiline numberOfLines={4} icon="create-outline" />
+          </SectionCard>
 
-                      <Text style={[styles.subsectionTitle, { marginTop: 16 }]}>Referencia 2</Text>
-                      <InputField
-                        label="Nombre completo"
-                        value={formData.reference2Name}
-                        onChangeText={(text) => updateFormData('reference2Name', text)}
-                        placeholder="Carlos Méndez"
-                        icon="person-outline"
-                      />
-                      <View style={styles.row}>
-                        <View style={styles.half}>
-                          <InputField
-                            label="Teléfono"
-                            value={formData.reference2Phone}
-                            onChangeText={(text) => updateFormData('reference2Phone', text)}
-                            placeholder="809-555-4321"
-                            icon="call-outline"
-                            keyboardType="phone-pad"
-                            error={errors.reference2Phone}
-                          />
-                        </View>
-                        <View style={styles.half}>
-                          <InputField
-                            label="Relación"
-                            value={formData.reference2Relationship}
-                            onChangeText={(text) => updateFormData('reference2Relationship', text)}
-                            placeholder="Amigo"
-                            icon="people-outline"
-                          />
-                        </View>
-                      </View>
-                    </>
-                  )}
-
-                  {/* Preferencias */}
-                  {section.id === 'preferences' && (
-                    <>
-                      <InputField
-                        label="Método de contacto preferido"
-                        value={getContactMethodLabel()}
-                        onChangeText={() => {}}
-                        placeholder="Seleccionar método"
-                        icon="chatbubbles-outline"
-                        onPress={() => setShowContactModal(true)}
-                      />
-                      
-                      <View style={styles.switchContainer}>
-                        <View style={styles.switchRow}>
-                          <View style={styles.switchLabel}>
-                            <Ionicons name="notifications-outline" size={20} color={C.textSub} />
-                            <Text style={styles.switchText}>Recibir notificaciones</Text>
-                          </View>
-                          <Switch
-                            value={formData.receiveNotifications}
-                            onValueChange={(value) => updateFormData('receiveNotifications', value)}
-                            trackColor={{ false: C.border, true: C.primary3 }}
-                            thumbColor={formData.receiveNotifications ? C.primary2 : C.white}
-                          />
-                        </View>
-                        
-                        <View style={styles.switchRow}>
-                          <View style={styles.switchLabel}>
-                            <Ionicons name="pricetag-outline" size={20} color={C.textSub} />
-                            <Text style={styles.switchText}>Recibir promociones</Text>
-                          </View>
-                          <Switch
-                            value={formData.receivePromotions}
-                            onValueChange={(value) => updateFormData('receivePromotions', value)}
-                            trackColor={{ false: C.border, true: C.primary3 }}
-                            thumbColor={formData.receivePromotions ? C.primary2 : C.white}
-                          />
-                        </View>
-                      </View>
-                    </>
-                  )}
-
-                  {/* Notas */}
-                  {section.id === 'notes' && (
-                    <InputField
-                      label="Notas adicionales"
-                      value={formData.notes}
-                      onChangeText={(text) => updateFormData('notes', text)}
-                      placeholder="Información adicional sobre el cliente..."
-                      icon="document-text-outline"
-                      multiline
-                      numberOfLines={4}
-                    />
-                  )}
-                </Animated.View>
-              )}
-            </Animated.View>
-          ))}
-
-          {/* ── BOTONES DE ACCIÓN ──────────────────────── */}
-          <View style={styles.actionButtons}>
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={() => navigation.goBack()}
-              disabled={saving}
-            >
-              <Text style={styles.cancelText}>Cancelar</Text>
+          {/* ─── Botones ──────────────────────────────── */}
+          <Animated.View entering={FadeInDown.delay(100).springify()} style={s.actions}>
+            <TouchableOpacity style={s.cancelBtn} onPress={() => navigation.goBack()} disabled={saving} activeOpacity={0.75}>
+              <Ionicons name="close" size={16} color={C.textSec} />
+              <Text style={s.cancelText}>Cancelar</Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[styles.saveButton, saving && styles.saveButtonDisabled]}
-              onPress={handleSave}
-              disabled={saving}
-            >
-              {saving ? (
-                <ActivityIndicator size="small" color="white" />
-              ) : (
-                <>
-                  <Ionicons name="save-outline" size={18} color="white" />
-                  <Text style={styles.saveText}>
-                    {clientId ? 'Actualizar' : 'Crear Cliente'}
-                  </Text>
-                </>
-              )}
+            <TouchableOpacity style={[s.submitBtn, saving && { opacity: 0.6 }]} onPress={handleSubmit} disabled={saving} activeOpacity={0.88}>
+              <LinearGradient colors={[C.brandLight, C.brandVibrant, C.brandMid]} style={s.submitGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                {saving ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="save-outline" size={17} color="#fff" />
+                    <Text style={s.submitText}>{clientId ? 'Actualizar' : 'Crear Cliente'}</Text>
+                  </>
+                )}
+              </LinearGradient>
             </TouchableOpacity>
-          </View>
+          </Animated.View>
 
-          <View style={{ height: 40 }} />
+          <View style={{ height: 48 }} />
         </View>
       </RNAnimated.ScrollView>
-
-      {/* ─── MODALES ────────────────────────────────── */}
-      <DocumentTypeModal
-        visible={showDocTypeModal}
-        onClose={() => setShowDocTypeModal(false)}
-        onSelect={(type) => updateFormData('documentType', type)}
-        currentType={formData.documentType}
-      />
-      
-      <ContactMethodModal
-        visible={showContactModal}
-        onClose={() => setShowContactModal(false)}
-        onSelect={(method) => updateFormData('preferredContact', method)}
-        currentMethod={formData.preferredContact}
-      />
     </KeyboardAvoidingView>
   );
 };
 
 // ─── Styles ───────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: C.bg,
-  },
-  scrollContent: {
-    paddingBottom: 20,
-  },
-  floatNav: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 99,
-    height: Platform.OS === 'ios' ? 100 : 90,
-    paddingTop: Platform.OS === 'ios' ? 50 : 44,
-    overflow: 'hidden',
-    borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(0,0,0,0.08)',
-  },
-  floatContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-  },
-  floatTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: C.text,
-  },
-  header: {
-    paddingTop: 56,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
-    paddingBottom: 24,
-  },
-  topRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 16,
-  },
-  iconBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: 'white',
-    letterSpacing: -0.5,
-  },
-  headerInfo: {
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  avatarContainer: {
-    marginBottom: 12,
-  },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 25,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 3,
-    borderColor: 'white',
-  },
-  avatarText: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: 'white',
-  },
-  headerName: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: 'white',
-    letterSpacing: -0.5,
-    textAlign: 'center',
-  },
-  headerEmail: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 4,
-  },
-  body: {
-    padding: 16,
-    marginTop: 8,
-  },
-  section: {
-    backgroundColor: C.white,
-    borderRadius: 16,
-    marginBottom: 12,
-    paddingHorizontal: 16,
-    borderWidth: 0.5,
-    borderColor: C.border,
-    overflow: 'hidden',
-  },
-  sectionContent: {
-    paddingBottom: 16,
-  },
-  row: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  half: {
-    flex: 1,
-  },
-  subsectionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: C.text,
-    marginBottom: 12,
-  },
-  switchContainer: {
-    marginTop: 8,
-  },
-  switchRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
-  },
-  switchLabel: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  switchText: {
-    fontSize: 14,
-    color: C.text,
-    fontWeight: '500',
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 24,
-  },
-  cancelButton: {
-    flex: 1,
-    paddingVertical: 16,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: C.white,
-    borderWidth: 1.5,
-    borderColor: C.border,
-  },
-  cancelText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: C.textSub,
-  },
-  saveButton: {
-    flex: 2,
-    flexDirection: 'row',
-    paddingVertical: 16,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: C.primary2,
-  },
-  saveButtonDisabled: {
-    opacity: 0.6,
-  },
-  saveText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: 'white',
-  },
-});
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: C.bg },
+  floatNav: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 99, height: 94, paddingTop: 48, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.06)', overflow: 'hidden' },
+  floatRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
+  floatTitle: { fontSize: 15, fontWeight: '800', color: C.text },
+  navBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center' },
 
-const loadS = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: C.bg,
-  },
-  gradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 300,
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  iconBg: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
-    backgroundColor: C.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 24,
-    shadowColor: C.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: C.text,
-    marginBottom: 24,
-  },
+  header: { paddingTop: 56, overflow: 'hidden' },
+  decCircle1: { position: 'absolute', width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.05)', top: -60, right: -40 },
+  decCircle2: { position: 'absolute', width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.04)', bottom: 20, left: -20 },
+  headerTop: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, marginBottom: 16 },
+  navBtnWhite: { width: 38, height: 38, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
+  headerLabel: { fontSize: 10, color: 'rgba(255,255,255,0.5)', fontWeight: '700', letterSpacing: 2, marginBottom: 2 },
+  headerTitle: { fontSize: 18, fontWeight: '900', color: '#fff', letterSpacing: -0.4 },
+  avatarContainer: { alignItems: 'center', marginBottom: 16 },
+  headerName: { fontSize: 20, fontWeight: '800', color: '#fff', marginTop: 8, letterSpacing: -0.4 },
+  headerEmail: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
+
+  body: { padding: 12, paddingTop: 14 },
+  row: { flexDirection: 'row', gap: 12 },
+  half: { flex: 1 },
+  subLabel: { fontSize: 12, fontWeight: '700', color: C.textSec, marginBottom: 8, letterSpacing: 0.1 },
+  divider: { height: 1, backgroundColor: C.border, marginVertical: 12 },
+
+  actions: { flexDirection: 'row', gap: 10, marginTop: 6, marginBottom: 6 },
+  cancelBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 15, borderRadius: 15, backgroundColor: C.surface, borderWidth: 1.5, borderColor: C.border },
+  cancelText: { fontSize: 14, fontWeight: '700', color: C.textSec },
+  submitBtn: { flex: 2.5, borderRadius: 15, overflow: 'hidden', shadowColor: C.brandVibrant, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 5 },
+  submitGrad: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 15 },
+  submitText: { fontSize: 15, fontWeight: '800', color: '#fff' },
 });

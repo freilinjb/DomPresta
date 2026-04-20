@@ -19,10 +19,11 @@ import Animated, {
   SlideInRight,
   Layout,
   FadeIn,
+  ZoomIn,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
-import Svg, { Circle, Text as SvgText, G, Line, Rect } from 'react-native-svg';
+import Svg, { Circle, Text as SvgText, G, Line, Defs, LinearGradient as SvgLinearGradient, Stop, Rect } from 'react-native-svg';
 import { Loan } from '../../types';
 import { LoanService } from '../../services/loanService';
 import { MainTabParamList } from '../../navigation/types';
@@ -76,12 +77,14 @@ interface HomeScreenProps { navigation: HomeScreenNavigationProp; }
 
 // ─── Datos Mock (Conservados pero con estilo mejorado) ────────────
 const MOCK_LOANS: Loan[] = [
-  { id: '1', borrowerName: 'Juan Rodríguez Méndez', amount: 15750.50, status: 'active', createdAt: '2026-01-15' },
-  { id: '2', borrowerName: 'María Pérez González', amount: 8250.00, status: 'pending', createdAt: '2026-03-20' },
-  { id: '3', borrowerName: 'Carlos García López', amount: 22300.75, status: 'overdue', createdAt: '2025-11-10' },
-  { id: '4', borrowerName: 'Ana Martínez Ruiz', amount: 12500.00, status: 'review', createdAt: '2026-04-05' },
-  { id: '5', borrowerName: 'Roberto Fernández Marte', amount: 18750.25, status: 'active', createdAt: '2025-12-01' },
-  { id: '6', borrowerName: 'Luisa Hernández Díaz', amount: 14300.00, status: 'active', createdAt: '2026-02-28' },
+  { id: '1', borrowerName: 'Juan Rodríguez Méndez', amount: 15750.50, status: 'active', createdAt: '2026-01-15', nextPaymentDate: '2026-04-25' },
+  { id: '2', borrowerName: 'María Pérez González', amount: 8250.00, status: 'pending', createdAt: '2026-03-20', nextPaymentDate: '2026-04-28' },
+  { id: '3', borrowerName: 'Carlos García López', amount: 22300.75, status: 'overdue', createdAt: '2025-11-10', nextPaymentDate: '2026-04-15' },
+  { id: '4', borrowerName: 'Ana Martínez Ruiz', amount: 12500.00, status: 'review', createdAt: '2026-04-05', nextPaymentDate: '2026-05-10' },
+  { id: '5', borrowerName: 'Roberto Fernández Marte', amount: 18750.25, status: 'active', createdAt: '2025-12-01', nextPaymentDate: '2026-04-22' },
+  { id: '6', borrowerName: 'Luisa Hernández Díaz', amount: 14300.00, status: 'active', createdAt: '2026-02-28', nextPaymentDate: '2026-04-30' },
+  { id: '7', borrowerName: 'Pedro Sánchez Vega', amount: 9200.50, status: 'pending', createdAt: '2026-04-12', nextPaymentDate: '2026-05-05' },
+  { id: '8', borrowerName: 'Sofía Ramírez Castro', amount: 31200.00, status: 'overdue', createdAt: '2025-10-15', nextPaymentDate: '2026-04-10' },
 ];
 
 const MOCK_CLIENTS = [
@@ -160,13 +163,18 @@ const Avatar: React.FC<{ name: string; index: number; size?: number }> = ({ name
 };
 
 // Tarjeta de Sección (Consistente con el diseño)
-const SectionCard: React.FC<{ title: string; icon: string; children: React.ReactNode; delay?: number }> = ({ title, icon, children, delay = 0 }) => (
+const SectionCard: React.FC<{ title: string; icon: string; children: React.ReactNode; delay?: number; badge?: string }> = ({ title, icon, children, delay = 0, badge }) => (
   <Animated.View entering={FadeInDown.delay(delay).springify()} style={secS.card}>
     <View style={secS.header}>
       <View style={secS.iconWrap}>
         <Ionicons name={icon as any} size={17} color={C.brandVibrant} />
       </View>
       <Text style={secS.title}>{title}</Text>
+      {badge && (
+        <View style={secS.badge}>
+          <Text style={secS.badgeText}>{badge}</Text>
+        </View>
+      )}
     </View>
     <View style={secS.divider} />
     {children}
@@ -176,7 +184,9 @@ const secS = StyleSheet.create({
   card: { backgroundColor: C.surface, borderRadius: 18, marginBottom: 12, borderWidth: 1, borderColor: C.border, overflow: 'hidden', shadowColor: C.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 1 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 16 },
   iconWrap: { width: 36, height: 36, borderRadius: 10, backgroundColor: C.brandFaint, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 14, fontWeight: '800', color: C.text, letterSpacing: -0.2 },
+  title: { fontSize: 14, fontWeight: '800', color: C.text, letterSpacing: -0.2, flex: 1 },
+  badge: { backgroundColor: C.brandFaint, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+  badgeText: { fontSize: 11, fontWeight: '800', color: C.brandVibrant },
   divider: { height: 1, backgroundColor: C.border, marginHorizontal: 16, marginBottom: 16 },
 });
 
@@ -235,13 +245,12 @@ const BarChart: React.FC = () => (
   </View>
 );
 
-const LineChart: React.FC = () => {
-  const data = [120, 145, 138, 162, 178, 195, 182];
+const Sparkline: React.FC<{ data: number[]; color: string }> = ({ data, color }) => {
   const max = Math.max(...data);
   const min = Math.min(...data);
   const range = max - min;
-  const height = 60;
-  const widthChart = width - 100; 
+  const height = 30;
+  const widthChart = 80;
   
   const points = data.map((value, index) => {
     const x = (index / (data.length - 1)) * widthChart;
@@ -251,12 +260,7 @@ const LineChart: React.FC = () => {
   
   return (
     <Svg width={widthChart} height={height} viewBox={`0 0 ${widthChart} ${height}`}>
-      <Line points={points} stroke={C.brandVibrant} strokeWidth={2.5} fill="none" strokeLinecap="round" />
-      {data.map((value, index) => {
-        const x = (index / (data.length - 1)) * widthChart;
-        const y = height - ((value - min) / range) * height;
-        return <Circle key={index} cx={x} cy={y} r={4} fill={C.surface} stroke={C.brandVibrant} strokeWidth={2.5} />;
-      })}
+      <Line points={points} stroke={color} strokeWidth={2} fill="none" strokeLinecap="round" />
     </Svg>
   );
 };
@@ -308,6 +312,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const pendingLoans = loans.filter(l => l.status === 'pending');
   const overdueLoans = loans.filter(l => l.status === 'overdue');
   const totalAmount = loans.reduce((sum, loan) => sum + loan.amount, 0);
+  
+  // Meta mensual (Nueva funcionalidad)
+  const monthlyGoal = 250000;
+  const goalProgress = Math.min((totalAmount / monthlyGoal) * 100, 100);
+
+  // Próximos vencimientos (Nueva funcionalidad)
+  const upcomingPayments = [...loans]
+    .filter(l => l.status === 'active' && l.nextPaymentDate)
+    .sort((a, b) => new Date(a.nextPaymentDate!).getTime() - new Date(b.nextPaymentDate!).getTime())
+    .slice(0, 3);
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -320,6 +334,20 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   const renderResumen = () => (
     <>
+      {/* Meta Mensual (NUEVO) */}
+      <Animated.View entering={FadeInDown.delay(240).springify()} style={s.goalCard}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+          <Text style={{ fontSize: 12, fontWeight: '700', color: C.text }}>Meta de colocación mensual</Text>
+          <Text style={{ fontSize: 12, fontWeight: '800', color: C.brandVibrant }}>{fmtShort(totalAmount)} / {fmtShort(monthlyGoal)}</Text>
+        </View>
+        <View style={s.progressBg}>
+          <Animated.View style={[s.progressFill, { width: `${goalProgress}%` }]} />
+        </View>
+        <Text style={{ fontSize: 10, color: C.textMuted, marginTop: 6, fontWeight: '500' }}>
+          {goalProgress >= 100 ? '¡Meta alcanzada! 🎉' : `Te faltan ${fmtShort(monthlyGoal - totalAmount)} para la meta`}
+        </Text>
+      </Animated.View>
+
       {/* Métricas Rápidas */}
       <View style={s.row}>
         <MetricCard icon="trending-up" label="Cobrado este mes" value="$22,450" trend="+15.2%" up delay={280} />
@@ -333,8 +361,29 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         <MetricCard icon="wallet" label="Disponible" value="$38.5K" trend="Listo" neu delay={400} />
       </View>
 
+      {/* Próximos Vencimientos (NUEVO) */}
+      <SectionCard title="Próximos vencimientos" icon="calendar-outline" delay={420} badge={upcomingPayments.length.toString()}>
+        {upcomingPayments.length > 0 ? (
+          upcomingPayments.map((loan, i) => {
+            const daysLeft = Math.ceil((new Date(loan.nextPaymentDate!).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+            return (
+              <Pressable key={loan.id} style={({ pressed }) => [s.listItem, pressed && { opacity: 0.7 }]} onPress={() => go('Loans')}>
+                <Avatar name={loan.borrowerName} index={i} size={40} />
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: C.text }} numberOfLines={1}>{loan.borrowerName}</Text>
+                  <Text style={{ fontSize: 10, color: C.textMuted }}>Vence en {daysLeft} días</Text>
+                </View>
+                <Text style={{ fontSize: 14, fontWeight: '800', color: C.brandVibrant }}>{fmtShort(loan.amount)}</Text>
+              </Pressable>
+            );
+          })
+        ) : (
+          <Text style={{ color: C.textMuted, textAlign: 'center', paddingVertical: 10 }}>No hay vencimientos próximos</Text>
+        )}
+      </SectionCard>
+
       {/* Pipeline */}
-      <SectionCard title="Proceso de préstamos" icon="git-network-outline" delay={440}>
+      <SectionCard title="Proceso de préstamos" icon="git-network-outline" delay={460}>
         <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8 }}>
           <PipeStep label="Solicitud" count="42" state="done" />
           <PipeStep label="Evaluación" count="35" state="done" />
@@ -345,14 +394,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       </SectionCard>
 
       {/* Gráficos */}
-      <SectionCard title="Tendencia de cobros" icon="bar-chart-outline" delay={470}>
-        <LineChart />
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12, paddingHorizontal: 8 }}>
-          {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(d => <Text key={d} style={{ fontSize: 10, color: C.textMuted, fontWeight: '600' }}>{d}</Text>)}
-        </View>
-      </SectionCard>
-
-      <SectionCard title="Cobros mensuales (2026)" icon="calendar-outline" delay={490}>
+      <SectionCard title="Cobros mensuales (2026)" icon="bar-chart-outline" delay={490}>
         <BarChart />
       </SectionCard>
     </>
@@ -406,6 +448,24 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           </Pressable>
         ))}
       </SectionCard>
+      
+      {/* Estadísticas de clientes (NUEVO) */}
+      <SectionCard title="Estadísticas de clientes" icon="stats-chart-outline" delay={340}>
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <View style={{ flex: 1, alignItems: 'center', padding: 12, backgroundColor: C.brandFaint, borderRadius: 12 }}>
+            <Text style={{ fontSize: 22, fontWeight: '900', color: C.brandVibrant }}>156</Text>
+            <Text style={{ fontSize: 10, color: C.textSec, fontWeight: '600' }}>Total clientes</Text>
+          </View>
+          <View style={{ flex: 1, alignItems: 'center', padding: 12, backgroundColor: C.successBg, borderRadius: 12 }}>
+            <Text style={{ fontSize: 22, fontWeight: '900', color: C.successMid }}>142</Text>
+            <Text style={{ fontSize: 10, color: C.textSec, fontWeight: '600' }}>Activos</Text>
+          </View>
+          <View style={{ flex: 1, alignItems: 'center', padding: 12, backgroundColor: C.warningBg, borderRadius: 12 }}>
+            <Text style={{ fontSize: 22, fontWeight: '900', color: C.warningMid }}>14</Text>
+            <Text style={{ fontSize: 10, color: C.textSec, fontWeight: '600' }}>Nuevos (mes)</Text>
+          </View>
+        </View>
+      </SectionCard>
     </Animated.View>
   );
 
@@ -423,6 +483,33 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             </View>
           </Pressable>
         ))}
+      </SectionCard>
+      
+      {/* KPIs (NUEVO) */}
+      <SectionCard title="KPIs principales" icon="speedometer-outline" delay={340}>
+        <View style={{ gap: 12 }}>
+          <View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+              <Text style={{ fontSize: 12, color: C.textSec, fontWeight: '600' }}>ROI Cartera</Text>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: C.successMid }}>18.5%</Text>
+            </View>
+            <View style={s.kpiBarBg}><View style={[s.kpiBarFill, { width: '85%', backgroundColor: C.successMid }]} /></View>
+          </View>
+          <View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+              <Text style={{ fontSize: 12, color: C.textSec, fontWeight: '600' }}>Índice de morosidad</Text>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: C.warningMid }}>4.2%</Text>
+            </View>
+            <View style={s.kpiBarBg}><View style={[s.kpiBarFill, { width: '28%', backgroundColor: C.warningMid }]} /></View>
+          </View>
+          <View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+              <Text style={{ fontSize: 12, color: C.textSec, fontWeight: '600' }}>Crecimiento mensual</Text>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: C.brandVibrant }}>12.3%</Text>
+            </View>
+            <View style={s.kpiBarBg}><View style={[s.kpiBarFill, { width: '72%', backgroundColor: C.brandVibrant }]} /></View>
+          </View>
+        </View>
       </SectionCard>
     </Animated.View>
   );
@@ -470,6 +557,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     <View style={s.root}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
+      {/* Floating nav on scroll */}
       <RNAnimated.View style={[s.floatNav, { opacity: navOpacity }]} pointerEvents="box-none">
         <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFillObject} />
         <View style={s.floatRow}>
@@ -500,19 +588,23 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               <Text style={s.headerLabel}>{greeting} 👋</Text>
               <Text style={s.headerTitle}>Carlos Méndez</Text>
             </View>
-            <TouchableOpacity style={s.navBtnWhite} onPress={() => go('LoanRequestForm' as any)}>
+            <TouchableOpacity style={s.navBtnWhite} onPress={() => go('LoanRequests' as any)}>
               <Ionicons name="notifications-outline" size={20} color="white" />
               <View style={s.notifDot} />
             </TouchableOpacity>
           </View>
 
+          {/* Balance Card con Sparkline (MEJORADO) */}
           <Animated.View entering={FadeInDown.delay(100).springify()} style={s.balCard}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', fontWeight: '600', marginBottom: 4 }}>Cartera Total Activa</Text>
                 <Text style={{ fontSize: 30, fontWeight: '900', color: 'white', letterSpacing: -1 }}>{fmtShort(totalAmount)}</Text>
               </View>
-              <Ionicons name="wallet-outline" size={24} color="rgba(255,255,255,0.8)" />
+              <View style={{ alignItems: 'flex-end' }}>
+                <Ionicons name="wallet-outline" size={24} color="rgba(255,255,255,0.8)" />
+                <Sparkline data={[120, 135, 128, 145, 155, 148, 162]} color="#34d399" />
+              </View>
             </View>
             <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.15)', marginBottom: 14 }} />
             <View style={{ flexDirection: 'row' }}>
@@ -573,9 +665,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               </View>
               <View style={{ height: 10 }} />
               <View style={s.row}>
-                <QuickAction icon="alert-circle" label="Vencidos" sub="9 en mora" bg={C.dangerBg} onPress={() => setActiveTab('Préstamos')} delay={650} />
+                <QuickAction icon="alert-circle" label="Vencidos" sub={`${overdueLoans.length} en mora`} bg={C.dangerBg} onPress={() => setActiveTab('Préstamos')} delay={650} />
                 <View style={{ width: 10 }} />
-                <QuickAction icon="document-text" label="Reportes" sub="Exportar" bg={C.infoBg} onPress={() => go('Settings')} delay={680} />
+                <QuickAction icon="document-text" label="Reportes" sub="Exportar" bg={C.infoBg} onPress={() => setActiveTab('Reportes')} delay={680} />
               </View>
             </>
           )}
@@ -583,6 +675,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           <View style={{ height: 80 }} />
         </View>
       </RNAnimated.ScrollView>
+
+      {/* FAB (NUEVO) */}
+      <Animated.View entering={ZoomIn.delay(800).springify()} style={s.fab}>
+        <TouchableOpacity onPress={() => go('LoanRequestForm' as any)} activeOpacity={0.88} style={s.fabInner}>
+          <LinearGradient colors={[C.brandLight, C.brandVibrant, C.brandMid]} style={s.fabGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+            <Ionicons name="add" size={28} color="white" />
+          </LinearGradient>
+        </TouchableOpacity>
+      </Animated.View>
     </View>
   );
 };
@@ -629,6 +730,14 @@ const s = StyleSheet.create({
   headerTitle: { fontSize: 22, fontWeight: '900', color: '#fff', letterSpacing: -0.4 },
   
   balCard: { marginHorizontal: 16, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 20, padding: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)' },
+  
+  goalCard: { backgroundColor: C.surface, borderRadius: 16, padding: 16, marginBottom: 14, marginHorizontal: 4, borderWidth: 1, borderColor: C.border },
+  progressBg: { height: 8, backgroundColor: C.brandFaint, borderRadius: 4, overflow: 'hidden' },
+  progressFill: { height: '100%', backgroundColor: C.brandVibrant, borderRadius: 4 },
+  
+  kpiBarBg: { height: 6, backgroundColor: C.brandFaint, borderRadius: 3, overflow: 'hidden' },
+  kpiBarFill: { height: '100%', borderRadius: 3 },
+
   tab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabActive: { borderBottomColor: 'white' },
 
@@ -646,4 +755,8 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', paddingVertical: 10,
     borderBottomWidth: 1, borderBottomColor: C.border,
   },
+  
+  fab: { position: 'absolute', bottom: 28, right: 20, zIndex: 100, shadowColor: C.brandVibrant, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 8 },
+  fabInner: { width: 58, height: 58, borderRadius: 29, overflow: 'hidden' },
+  fabGrad: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
 });
