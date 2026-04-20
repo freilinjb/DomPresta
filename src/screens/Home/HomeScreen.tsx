@@ -10,7 +10,6 @@ import {
   StatusBar,
   Animated as RNAnimated,
   Pressable,
-  FlatList,
 } from 'react-native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -23,38 +22,59 @@ import Animated, {
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
-import Svg, { Circle, Text as SvgText, G, Line } from 'react-native-svg';
+import Svg, { Circle, Text as SvgText, G, Line, Rect } from 'react-native-svg';
 import { Loan } from '../../types';
 import { LoanService } from '../../services/loanService';
 import { MainTabParamList } from '../../navigation/types';
 
 const { width } = Dimensions.get('window');
 
-// ─── Theme ────────────────────────────────────────────────────────
+// ─── Design Tokens (Extraídos de LoanRequestsScreen) ──────────────
 const C = {
-  primary: '#5b21b6',
-  primary2: '#7c3aed',
-  primary3: '#a78bfa',
-  primary4: '#ddd6fe',
-  primary5: '#f5f3ff',
-  bg: '#f5f3ff',
-  white: '#ffffff',
-  text: '#1e1b4b',
-  textSub: '#64748b',
-  textMuted: '#94a3b8',
-  border: 'rgba(0,0,0,0.06)',
+  // Brand
+  brand: '#1a0533',
+  brandMid: '#3d0f7a',
+  brandVibrant: '#6d28d9',
+  brandLight: '#8b5cf6',
+  brandPale: '#ede9fe',
+  brandFaint: '#f5f3ff',
+
+  // Neutrals
+  bg: '#f8f7fc',
+  surface: '#ffffff',
+  surfaceHover: '#faf9ff',
+  border: 'rgba(109,40,217,0.08)',
+  borderStrong: 'rgba(109,40,217,0.15)',
+
+  // Text
+  text: '#0f0a1e',
+  textSec: '#4a4560',
+  textMuted: '#9591a8',
+  textPlaceholder: '#b5b0c8',
+
+  // Semantic
   success: '#059669',
+  successMid: '#10b981',
   successBg: '#ecfdf5',
-  warning: '#d97706',
+  warning: '#b45309',
+  warningMid: '#d97706',
   warningBg: '#fffbeb',
-  danger: '#dc2626',
+  danger: '#b91c1c',
+  dangerMid: '#dc2626',
   dangerBg: '#fef2f2',
+  info: '#0369a1',
+  infoMid: '#0284c7',
+  infoBg: '#f0f9ff',
+  
+  // Misc
+  gold: '#f59e0b',
+  shadow: 'rgba(109,40,217,0.12)',
 };
 
 type HomeScreenNavigationProp = BottomTabNavigationProp<MainTabParamList, 'Home'>;
 interface HomeScreenProps { navigation: HomeScreenNavigationProp; }
 
-// ─── Datos falsos mejorados ───────────────────────────────────────
+// ─── Datos Mock (Conservados pero con estilo mejorado) ────────────
 const MOCK_LOANS: Loan[] = [
   { id: '1', borrowerName: 'Juan Rodríguez Méndez', amount: 15750.50, status: 'active', createdAt: '2026-01-15' },
   { id: '2', borrowerName: 'María Pérez González', amount: 8250.00, status: 'pending', createdAt: '2026-03-20' },
@@ -62,8 +82,6 @@ const MOCK_LOANS: Loan[] = [
   { id: '4', borrowerName: 'Ana Martínez Ruiz', amount: 12500.00, status: 'review', createdAt: '2026-04-05' },
   { id: '5', borrowerName: 'Roberto Fernández Marte', amount: 18750.25, status: 'active', createdAt: '2025-12-01' },
   { id: '6', borrowerName: 'Luisa Hernández Díaz', amount: 14300.00, status: 'active', createdAt: '2026-02-28' },
-  { id: '7', borrowerName: 'Pedro Sánchez Vega', amount: 9200.50, status: 'pending', createdAt: '2026-04-12' },
-  { id: '8', borrowerName: 'Sofía Ramírez Castro', amount: 31200.00, status: 'overdue', createdAt: '2025-10-15' },
 ];
 
 const MOCK_CLIENTS = [
@@ -71,14 +89,12 @@ const MOCK_CLIENTS = [
   { id: '2', name: 'Miguel Ángel Cruz', email: 'miguel.cruz@email.com', phone: '809-555-0124', loans: 1, totalAmount: 15000, status: 'pending' },
   { id: '3', name: 'Laura Jiménez Paz', email: 'laura.jimenez@email.com', phone: '809-555-0125', loans: 5, totalAmount: 78250, status: 'active' },
   { id: '4', name: 'Ricardo Mora Silva', email: 'ricardo.mora@email.com', phone: '809-555-0126', loans: 2, totalAmount: 28900, status: 'overdue' },
-  { id: '5', name: 'Carmen Díaz Rojas', email: 'carmen.diaz@email.com', phone: '809-555-0127', loans: 4, totalAmount: 56300, status: 'active' },
 ];
 
 const MOCK_REPORTS = [
-  { id: '1', title: 'Reporte de Cobranzas - Abril 2026', date: '2026-04-15', type: 'collection', amount: 89500, status: 'generated' },
-  { id: '2', title: 'Análisis de Riesgo - Q1 2026', date: '2026-04-10', type: 'risk', score: 87, status: 'generated' },
-  { id: '3', title: 'Proyección de Crecimiento 2026', date: '2026-04-05', type: 'growth', growth: 23.5, status: 'generated' },
-  { id: '4', title: 'Balance General - Marzo 2026', date: '2026-03-31', type: 'balance', amount: 1245000, status: 'generated' },
+  { id: '1', title: 'Reporte de Cobranzas - Abril 2026', date: '2026-04-15', type: 'collection', amount: 89500 },
+  { id: '2', title: 'Análisis de Riesgo - Q1 2026', date: '2026-04-10', type: 'risk', score: 87 },
+  { id: '3', title: 'Proyección de Crecimiento 2026', date: '2026-04-05', type: 'growth', growth: 23.5 },
 ];
 
 const MONTHLY = [
@@ -93,128 +109,84 @@ const MONTHLY = [
 ];
 
 const DONUT_SEGS = [
-  { pct: 0.62, color: '#7c3aed', label: 'Activos', count: 48 },
-  { pct: 0.18, color: '#a78bfa', label: 'Pendientes', count: 14 },
+  { pct: 0.62, color: C.brandVibrant, label: 'Activos', count: 48 },
+  { pct: 0.18, color: C.brandLight, label: 'Pendientes', count: 14 },
   { pct: 0.12, color: '#f87171', label: 'Vencidos', count: 9 },
-  { pct: 0.08, color: '#34d399', label: 'Completados', count: 72 },
+  { pct: 0.08, color: C.successMid, label: 'Completados', count: 72 },
 ];
 
-const AVATAR_GRADIENTS: [string, string][] = [
-  ['#7c3aed', '#4f46e5'],
-  ['#8b5cf6', '#06b6d4'],
-  ['#f87171', '#f59e0b'],
-  ['#059669', '#0891b2'],
-  ['#7c3aed', '#059669'],
-  ['#a78bfa', '#f59e0b'],
-  ['#ec4899', '#8b5cf6'],
-  ['#14b8a6', '#3b82f6'],
+const AVATAR_PALETTES: [string, string][] = [
+  ['#7c3aed', '#4f46e5'], ['#8b5cf6', '#06b6d4'], ['#f87171', '#f59e0b'],
+  ['#059669', '#0891b2'], ['#7c3aed', '#059669'], ['#a78bfa', '#f59e0b'],
 ];
 
-const STATUS_CFG: Record<string, { label: string; fg: string; bg: string }> = {
-  active: { label: 'Al día', fg: '#059669', bg: '#ecfdf5' },
-  pending: { label: 'Pendiente', fg: '#d97706', bg: '#fffbeb' },
-  overdue: { label: 'Vencido', fg: '#dc2626', bg: '#fef2f2' },
-  review: { label: 'En revisión', fg: '#7c3aed', bg: '#f5f3ff' },
-  completed: { label: 'Completado', fg: '#334155', bg: '#f1f5f9' },
-};
+// ─── Componentes UI Reutilizables (Estilo LoanRequests) ───────────
 
-// ─── StatusPill ───────────────────────────────────────────────────
-const StatusPill: React.FC<{ status: string }> = ({ status }) => {
-  const cfg = STATUS_CFG[status] ?? { label: status, fg: '#94a3b8', bg: '#f1f5f9' };
+// StatusBadge (Estilo exacto de la pantalla de Solicitudes)
+const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
+  const config: Record<string, { label: string; bg: string; color: string; border: string; dot: string }> = {
+    active:     { label: 'Al día',   bg: C.successBg,  color: C.successMid,  border: C.border,  dot: '#10b981' },
+    pending:    { label: 'Pendiente', bg: C.warningBg,  color: C.warningMid,  border: C.border,  dot: '#f59e0b' },
+    overdue:    { label: 'Vencido',  bg: C.dangerBg,   color: C.dangerMid,   border: C.border,  dot: '#ef4444' },
+    review:     { label: 'En revisión', bg: C.infoBg,  color: C.infoMid,    border: C.border,  dot: '#0ea5e9' },
+  };
+  const cfg = config[status] || { label: status, bg: '#f1f5f9', color: '#475569', border: C.border, dot: '#94a3b8' };
   return (
-    <View style={[plS.w, { backgroundColor: cfg.bg }]}>
-      <View style={[plS.d, { backgroundColor: cfg.fg }]} />
-      <Text style={[plS.t, { color: cfg.fg }]}>{cfg.label}</Text>
+    <View style={[badgeS.pill, { backgroundColor: cfg.bg, borderColor: cfg.border }]}>
+      <View style={[badgeS.dot, { backgroundColor: cfg.dot }]} />
+      <Text style={[badgeS.text, { color: cfg.color }]}>{cfg.label}</Text>
     </View>
   );
 };
-const plS = StyleSheet.create({
-  w: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 20, alignSelf: 'flex-start' },
-  d: { width: 5, height: 5, borderRadius: 3, marginRight: 4 },
-  t: { fontSize: 9, fontWeight: '700', letterSpacing: 0.3 },
+const badgeS = StyleSheet.create({
+  pill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20, borderWidth: 1, gap: 5 },
+  dot: { width: 6, height: 6, borderRadius: 3 },
+  text: { fontSize: 10, fontWeight: '700', letterSpacing: 0.1 },
 });
 
-// ─── MetricCard ───────────────────────────────────────────────────
-const MetricCard: React.FC<{
-  icon: string; label: string; value: string;
-  trend: string; up?: boolean; neu?: boolean; delay?: number;
-}> = ({ icon, label, value, trend, up, neu, delay = 0 }) => {
-  const fg = neu ? '#7c3aed' : up ? '#059669' : '#dc2626';
-  const bg = neu ? '#f5f3ff' : up ? '#ecfdf5' : '#fef2f2';
+// Avatar (Estilo del formulario)
+const Avatar: React.FC<{ name: string; index: number; size?: number }> = ({ name, index, size = 42 }) => {
+  const initials = name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  const [c1, c2] = AVATAR_PALETTES[index % AVATAR_PALETTES.length];
+  const radius = size * 0.28;
   return (
-    <Animated.View entering={FadeInDown.delay(delay).springify()} style={mS.card}>
-      <Text style={{ fontSize: 22, marginBottom: 8 }}>{icon}</Text>
-      <Text style={mS.val}>{value}</Text>
-      <Text style={mS.lbl}>{label}</Text>
-      <View style={[mS.tw, { backgroundColor: bg }]}>
-        <Text style={[mS.tr, { color: fg }]}>{trend}</Text>
+    <View style={{ width: size, height: size, borderRadius: radius, overflow: 'hidden' }}>
+      <LinearGradient colors={[c1, c2]} style={StyleSheet.absoluteFillObject} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ color: 'white', fontSize: size * 0.32, fontWeight: '800' }}>{initials}</Text>
       </View>
-    </Animated.View>
+    </View>
   );
 };
-const mS = StyleSheet.create({
-  card: { flex: 1, backgroundColor: C.white, borderRadius: 16, padding: 14, borderWidth: 0.5, borderColor: C.border },
-  val: { fontSize: 16, fontWeight: '800', color: C.text, letterSpacing: -0.5 },
-  lbl: { fontSize: 10, color: C.textMuted, fontWeight: '600', marginTop: 2 },
-  tw: { marginTop: 7, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, alignSelf: 'flex-start' },
-  tr: { fontSize: 9, fontWeight: '700' },
-});
 
-// ─── QuickAction ──────────────────────────────────────────────────
-const QuickAction: React.FC<{
-  icon: string; label: string; sub: string; iconBg: string;
-  onPress: () => void; delay?: number;
-}> = ({ icon, label, sub, iconBg, onPress, delay = 0 }) => (
-  <Animated.View entering={FadeInDown.delay(delay).springify()} style={{ flex: 1 }}>
-    <Pressable
-      onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); }}
-      style={({ pressed }) => [qS.btn, pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] }]}
-    >
-      <View style={[qS.ic, { backgroundColor: iconBg }]}>
-        <Text style={{ fontSize: 18 }}>{icon}</Text>
+// Tarjeta de Sección (Consistente con el diseño)
+const SectionCard: React.FC<{ title: string; icon: string; children: React.ReactNode; delay?: number }> = ({ title, icon, children, delay = 0 }) => (
+  <Animated.View entering={FadeInDown.delay(delay).springify()} style={secS.card}>
+    <View style={secS.header}>
+      <View style={secS.iconWrap}>
+        <Ionicons name={icon as any} size={17} color={C.brandVibrant} />
       </View>
-      <Text style={qS.nm}>{label}</Text>
-      <Text style={qS.sb}>{sub}</Text>
-    </Pressable>
+      <Text style={secS.title}>{title}</Text>
+    </View>
+    <View style={secS.divider} />
+    {children}
   </Animated.View>
 );
-const qS = StyleSheet.create({
-  btn: { backgroundColor: C.white, borderRadius: 16, padding: 14, borderWidth: 0.5, borderColor: C.border, flex: 1 },
-  ic: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  nm: { fontSize: 11, fontWeight: '700', color: C.text },
-  sb: { fontSize: 9, color: C.textMuted, marginTop: 2 },
+const secS = StyleSheet.create({
+  card: { backgroundColor: C.surface, borderRadius: 18, marginBottom: 12, borderWidth: 1, borderColor: C.border, overflow: 'hidden', shadowColor: C.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 1 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 16 },
+  iconWrap: { width: 36, height: 36, borderRadius: 10, backgroundColor: C.brandFaint, alignItems: 'center', justifyContent: 'center' },
+  title: { fontSize: 14, fontWeight: '800', color: C.text, letterSpacing: -0.2 },
+  divider: { height: 1, backgroundColor: C.border, marginHorizontal: 16, marginBottom: 16 },
 });
 
-// ─── PipeStep ─────────────────────────────────────────────────────
-const PipeStep: React.FC<{ label: string; count: string; state: 'done' | 'active' | 'next' }> = ({ label, count, state }) => {
-  const bgC = state === 'done' ? '#7c3aed' : state === 'active' ? '#fbbf24' : '#f3f4f6';
-  const txtC = state === 'next' ? '#9ca3af' : 'white';
-  const valC = state === 'done' ? '#7c3aed' : state === 'active' ? '#d97706' : '#9ca3af';
-  return (
-    <View style={ppS.step}>
-      <View style={[ppS.circle, { backgroundColor: bgC }]}>
-        <Text style={[ppS.icon, { color: txtC }]}>{state === 'done' ? '✓' : state === 'active' ? '!' : '○'}</Text>
-      </View>
-      <Text style={[ppS.count, { color: valC }]}>{count}</Text>
-      <Text style={ppS.lbl}>{label}</Text>
-    </View>
-  );
-};
-const ppS = StyleSheet.create({
-  step: { flex: 1, alignItems: 'center' },
-  circle: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 4, zIndex: 1 },
-  icon: { fontSize: 11, fontWeight: '800' },
-  count: { fontSize: 12, fontWeight: '800' },
-  lbl: { fontSize: 8, color: C.textSub, fontWeight: '600', textAlign: 'center', marginTop: 2 },
-});
-
-// ─── DonutChart ───────────────────────────────────────────────────
+// ─── Gráficos SVG ─────────────────────────────────────────────────
 const DonutChart: React.FC = () => {
   const R = 34;
   const CIRC = 2 * Math.PI * R;
   let offset = 0;
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 8 }}>
       <Svg width={100} height={100} viewBox="0 0 100 100">
         <G rotation={-90} origin="50,50">
           {DONUT_SEGS.map((seg, i) => {
@@ -231,15 +203,15 @@ const DonutChart: React.FC = () => {
             );
           })}
         </G>
-        <SvgText x={50} y={46} textAnchor="middle" fontSize={11} fontWeight="800" fill={C.text}>143</SvgText>
-        <SvgText x={50} y={57} textAnchor="middle" fontSize={8} fill={C.textMuted}>total</SvgText>
+        <SvgText x={50} y={46} textAnchor="middle" fontSize={12} fontWeight="900" fill={C.text}>143</SvgText>
+        <SvgText x={50} y={57} textAnchor="middle" fontSize={9} fill={C.textMuted} fontWeight="600">total</SvgText>
       </Svg>
       <View style={{ flex: 1, gap: 8 }}>
         {DONUT_SEGS.map((seg, i) => (
           <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: seg.color }} />
-            <Text style={{ flex: 1, fontSize: 11, color: C.textSub, fontWeight: '500' }}>{seg.label}</Text>
-            <Text style={{ fontSize: 11, fontWeight: '700', color: C.text }}>{Math.round(seg.pct * 100)}% · {seg.count}</Text>
+            <Text style={{ flex: 1, fontSize: 11, color: C.textSec, fontWeight: '500' }}>{seg.label}</Text>
+            <Text style={{ fontSize: 11, fontWeight: '800', color: C.text }}>{Math.round(seg.pct * 100)}%</Text>
           </View>
         ))}
       </View>
@@ -247,53 +219,43 @@ const DonutChart: React.FC = () => {
   );
 };
 
-// ─── LoanAvatar ───────────────────────────────────────────────────
-const LoanAvatar: React.FC<{ name: string; idx: number }> = ({ name, idx }) => {
-  const initials = name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
-  const [c1, c2] = AVATAR_GRADIENTS[idx % AVATAR_GRADIENTS.length];
-  return (
-    <View style={{ width: 40, height: 40, borderRadius: 12, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
-      <LinearGradient colors={[c1, c2]} style={StyleSheet.absoluteFillObject} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
-      <Text style={{ color: 'white', fontSize: 13, fontWeight: '800' }}>{initials}</Text>
-    </View>
-  );
-};
+const BarChart: React.FC = () => (
+  <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 110, gap: 4, paddingHorizontal: 4 }}>
+    {MONTHLY.map((d, i) => (
+      <View key={i} style={{ flex: 1, alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
+        {!d.forecast && <Text style={{ fontSize: 9, fontWeight: '700', color: d.peak ? C.brandVibrant : C.textMuted }}>${d.amt}k</Text>}
+        {d.forecast ? (
+          <View style={{ width: '100%', height: d.h, borderRadius: 6, borderWidth: 1.5, borderColor: C.brandLight, borderStyle: 'dashed', backgroundColor: 'transparent' }} />
+        ) : (
+          <View style={{ width: '100%', height: d.h, borderRadius: 6, backgroundColor: d.peak ? C.brandVibrant : C.brandPale }} />
+        )}
+        <Text style={{ fontSize: 9, color: C.textMuted, fontWeight: '600' }}>{d.month}</Text>
+      </View>
+    ))}
+  </View>
+);
 
-// ─── LineChart ────────────────────────────────────────────────────
 const LineChart: React.FC = () => {
   const data = [120, 145, 138, 162, 178, 195, 182];
   const max = Math.max(...data);
   const min = Math.min(...data);
   const range = max - min;
   const height = 60;
-  const width = 300;
+  const widthChart = width - 100; 
   
   const points = data.map((value, index) => {
-    const x = (index / (data.length - 1)) * width;
+    const x = (index / (data.length - 1)) * widthChart;
     const y = height - ((value - min) / range) * height;
     return `${x},${y}`;
   }).join(' ');
   
   return (
-    <Svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
-      <Line
-        points={points}
-        stroke={C.primary2}
-        strokeWidth={2}
-        fill="none"
-      />
+    <Svg width={widthChart} height={height} viewBox={`0 0 ${widthChart} ${height}`}>
+      <Line points={points} stroke={C.brandVibrant} strokeWidth={2.5} fill="none" strokeLinecap="round" />
       {data.map((value, index) => {
-        const x = (index / (data.length - 1)) * width;
+        const x = (index / (data.length - 1)) * widthChart;
         const y = height - ((value - min) / range) * height;
-        return (
-          <Circle
-            key={index}
-            cx={x}
-            cy={y}
-            r={3}
-            fill={C.primary2}
-          />
-        );
+        return <Circle key={index} cx={x} cy={y} r={4} fill={C.surface} stroke={C.brandVibrant} strokeWidth={2.5} />;
       })}
     </Svg>
   );
@@ -326,7 +288,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   }, []);
 
   const fmt = (v: number) =>
-    `$${v.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    `RD$${v.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmtShort = (v: number): string => {
+    if (v >= 1_000_000) return `RD$${(v / 1_000_000).toFixed(1)}M`;
+    if (v >= 1_000) return `RD$${(v / 1_000).toFixed(1)}K`;
+    return `RD$${v.toFixed(0)}`;
+  };
 
   const go = (screen: keyof MainTabParamList) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -342,136 +309,71 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const overdueLoans = loans.filter(l => l.status === 'overdue');
   const totalAmount = loans.reduce((sum, loan) => sum + loan.amount, 0);
 
-  // Renderizar contenido según tab activo
   const renderTabContent = () => {
     switch (activeTab) {
-      case 'Resumen':
-        return renderResumenContent();
-      case 'Préstamos':
-        return renderPrestamosContent();
-      case 'Clientes':
-        return renderClientesContent();
-      case 'Reportes':
-        return renderReportesContent();
-      default:
-        return null;
+      case 'Resumen': return renderResumen();
+      case 'Préstamos': return renderPrestamos();
+      case 'Clientes': return renderClientes();
+      case 'Reportes': return renderReportes();
     }
   };
 
-  const renderResumenContent = () => (
+  const renderResumen = () => (
     <>
-      {/* ── MÉTRICAS ─────────────────────────────── */}
+      {/* Métricas Rápidas */}
       <View style={s.row}>
-        <MetricCard icon="💰" label="Cobrado este mes" value="$22,450" trend="▲ 15.2% vs mes ant." up delay={280} />
+        <MetricCard icon="trending-up" label="Cobrado este mes" value="$22,450" trend="+15.2%" up delay={280} />
         <View style={{ width: 10 }} />
-        <MetricCard icon="⚠️" label="Por vencer (7 días)" value="$11,280" trend="▼ 12 préstamos" delay={320} />
+        <MetricCard icon="alert-circle" label="Por vencer" value="$11,280" trend="12 préstamos" neu delay={320} />
       </View>
       <View style={{ height: 10 }} />
       <View style={s.row}>
-        <MetricCard icon="📈" label="Tasa de cobro" value="96.8%" trend="▲ Excelente" up delay={360} />
+        <MetricCard icon="pie-chart" label="Tasa de cobro" value="96.8%" trend="Excelente" up delay={360} />
         <View style={{ width: 10 }} />
-        <MetricCard icon="🏦" label="Capital disponible" value="$38,500" trend="→ Listo para prestar" neu delay={400} />
+        <MetricCard icon="wallet" label="Disponible" value="$38.5K" trend="Listo" neu delay={400} />
       </View>
 
-      {/* ── PIPELINE ─────────────────────────────── */}
-      <Text style={s.sectionTitle}>Proceso de préstamos</Text>
-      <Animated.View entering={FadeInDown.delay(440).springify()} style={s.card}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+      {/* Pipeline */}
+      <SectionCard title="Proceso de préstamos" icon="git-network-outline" delay={440}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8 }}>
           <PipeStep label="Solicitud" count="42" state="done" />
-          <View style={{ flex: 0.3, height: 2, backgroundColor: C.primary4, marginTop: -18 }} />
           <PipeStep label="Evaluación" count="35" state="done" />
-          <View style={{ flex: 0.3, height: 2, backgroundColor: C.primary4, marginTop: -18 }} />
           <PipeStep label="Aprobación" count="18" state="active" />
-          <View style={{ flex: 0.3, height: 2, backgroundColor: '#fde68a', marginTop: -18 }} />
           <PipeStep label="Desembolso" count="56" state="done" />
-          <View style={{ flex: 0.3, height: 2, backgroundColor: C.primary4, marginTop: -18 }} />
           <PipeStep label="Al día" count="143" state="done" />
         </View>
-      </Animated.View>
+      </SectionCard>
 
-      {/* ── LINE CHART ────────────────────────────── */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, marginTop: 6 }}>
-        <Text style={s.sectionTitle}>Tendencia de cobros</Text>
-        <View style={{ backgroundColor: C.primary5, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 }}>
-          <Text style={{ fontSize: 10, fontWeight: '700', color: C.primary2 }}>Últimos 7 días</Text>
-        </View>
-      </View>
-      <Animated.View entering={FadeInDown.delay(470).springify()} style={s.card}>
+      {/* Gráficos */}
+      <SectionCard title="Tendencia de cobros" icon="bar-chart-outline" delay={470}>
         <LineChart />
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
-          <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '600' }}>Lun</Text>
-          <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '600' }}>Mar</Text>
-          <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '600' }}>Mié</Text>
-          <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '600' }}>Jue</Text>
-          <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '600' }}>Vie</Text>
-          <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '600' }}>Sáb</Text>
-          <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '600' }}>Dom</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12, paddingHorizontal: 8 }}>
+          {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(d => <Text key={d} style={{ fontSize: 10, color: C.textMuted, fontWeight: '600' }}>{d}</Text>)}
         </View>
-      </Animated.View>
+      </SectionCard>
 
-      {/* ── BAR CHART ────────────────────────────── */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, marginTop: 6 }}>
-        <Text style={s.sectionTitle}>Cobros mensuales</Text>
-        <View style={{ backgroundColor: C.primary5, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 }}>
-          <Text style={{ fontSize: 10, fontWeight: '700', color: C.primary2 }}>2026</Text>
-        </View>
-      </View>
-      <Animated.View entering={FadeInDown.delay(490).springify()} style={s.card}>
-        <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 110, gap: 4 }}>
-          {MONTHLY.map((d, i) => (
-            <View key={i} style={{ flex: 1, alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
-              {!d.forecast && <Text style={{ fontSize: 8, fontWeight: '700', color: d.peak ? C.primary2 : C.textMuted }}>${d.amt}k</Text>}
-              {d.forecast ? (
-                <View style={{ width: '100%', height: d.h, borderRadius: 6, borderWidth: 1.5, borderColor: C.primary3, borderStyle: 'dashed' }} />
-              ) : (
-                <View style={{ width: '100%', height: d.h, borderRadius: 6, backgroundColor: d.peak ? C.primary2 : C.primary4 }} />
-              )}
-              <Text style={{ fontSize: 8, color: C.textMuted, fontWeight: '600' }}>{d.month}</Text>
-            </View>
-          ))}
-        </View>
-      </Animated.View>
+      <SectionCard title="Cobros mensuales (2026)" icon="calendar-outline" delay={490}>
+        <BarChart />
+      </SectionCard>
     </>
   );
 
-  const renderPrestamosContent = () => (
+  const renderPrestamos = () => (
     <Animated.View entering={FadeIn.delay(200)}>
       <View style={s.row}>
-        <View style={[s.statCard, { flex: 1 }]}>
-          <Text style={{ fontSize: 24, fontWeight: '900', color: C.text }}>{loans.length}</Text>
-          <Text style={{ fontSize: 12, color: C.textSub, fontWeight: '600' }}>Total préstamos</Text>
-        </View>
-        <View style={{ width: 10 }} />
-        <View style={[s.statCard, { flex: 1 }]}>
-          <Text style={{ fontSize: 24, fontWeight: '900', color: C.success }}>{fmt(totalAmount)}</Text>
-          <Text style={{ fontSize: 12, color: C.textSub, fontWeight: '600' }}>Monto total</Text>
-        </View>
+        <StatBox label="Total préstamos" value={loans.length.toString()} color={C.text} />
+        <StatBox label="Monto total" value={fmtShort(totalAmount)} color={C.successMid} />
       </View>
-      <View style={{ height: 10 }} />
       <View style={s.row}>
-        <View style={[s.statCard, { flex: 1 }]}>
-          <Text style={{ fontSize: 24, fontWeight: '900', color: C.warning }}>{pendingLoans.length}</Text>
-          <Text style={{ fontSize: 12, color: C.textSub, fontWeight: '600' }}>Pendientes</Text>
-        </View>
-        <View style={{ width: 10 }} />
-        <View style={[s.statCard, { flex: 1 }]}>
-          <Text style={{ fontSize: 24, fontWeight: '900', color: C.danger }}>{overdueLoans.length}</Text>
-          <Text style={{ fontSize: 12, color: C.textSub, fontWeight: '600' }}>Vencidos</Text>
-        </View>
+        <StatBox label="Pendientes" value={pendingLoans.length.toString()} color={C.warningMid} />
+        <StatBox label="Vencidos" value={overdueLoans.length.toString()} color={C.dangerMid} />
       </View>
       
       <Text style={[s.sectionTitle, { marginTop: 16 }]}>Todos los préstamos</Text>
       {loans.map((loan, i) => (
-        <Animated.View
-          key={loan.id}
-          entering={SlideInRight.delay(300 + i * 60).springify()}
-          layout={Layout.springify()}
-        >
-          <Pressable
-            style={({ pressed }) => [s.loanRow, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
-            onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
-          >
-            <LoanAvatar name={loan.borrowerName} idx={i} />
+        <Animated.View key={loan.id} entering={SlideInRight.delay(300 + i * 60).springify()} layout={Layout.springify()}>
+          <Pressable style={({ pressed }) => [s.loanRow, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]} onPress={() => go('Loans')}>
+            <Avatar name={loan.borrowerName} index={i} />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={{ fontSize: 13, fontWeight: '700', color: C.text }} numberOfLines={1}>{loan.borrowerName}</Text>
               <Text style={{ fontSize: 10, color: C.textMuted, marginTop: 2 }}>
@@ -480,173 +382,137 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             </View>
             <View style={{ alignItems: 'flex-end', gap: 4 }}>
               <Text style={{ fontSize: 13, fontWeight: '800', color: C.text }}>{fmt(loan.amount)}</Text>
-              <StatusPill status={loan.status} />
+              <StatusBadge status={loan.status} />
             </View>
-            <Ionicons name="chevron-forward" size={14} color={C.textMuted} style={{ marginLeft: 6 }} />
           </Pressable>
         </Animated.View>
       ))}
     </Animated.View>
   );
 
-  const renderClientesContent = () => (
+  const renderClientes = () => (
     <Animated.View entering={FadeIn.delay(200)}>
-      <View style={s.card}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <Text style={{ fontSize: 16, fontWeight: '800', color: C.text }}>Clientes destacados</Text>
-          <Ionicons name="people" size={24} color={C.primary2} />
-        </View>
+      <SectionCard title="Clientes destacados" icon="people-outline" delay={300}>
         {MOCK_CLIENTS.map((client, i) => (
-          <Pressable
-            key={client.id}
-            style={({ pressed }) => [
-              { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: i < MOCK_CLIENTS.length - 1 ? 1 : 0, borderBottomColor: C.border },
-              pressed && { opacity: 0.7 }
-            ]}
-          >
-            <LoanAvatar name={client.name} idx={i} />
+          <Pressable key={client.id} style={({ pressed }) => [s.listItem, pressed && { opacity: 0.7 }]}>
+            <Avatar name={client.name} index={i} />
             <View style={{ flex: 1, marginLeft: 12 }}>
               <Text style={{ fontSize: 13, fontWeight: '700', color: C.text }}>{client.name}</Text>
-              <Text style={{ fontSize: 10, color: C.textMuted }}>{client.email} · {client.phone}</Text>
+              <Text style={{ fontSize: 10, color: C.textMuted }}>{client.email}</Text>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
-              <Text style={{ fontSize: 12, fontWeight: '800', color: C.primary2 }}>{client.loans} préstamos</Text>
-              <Text style={{ fontSize: 10, color: C.textMuted }}>{fmt(client.totalAmount)}</Text>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: C.brandVibrant }}>{client.loans} prést.</Text>
             </View>
           </Pressable>
         ))}
-      </View>
-      
-      <View style={[s.card, { marginTop: 10 }]}>
-        <Text style={{ fontSize: 14, fontWeight: '800', color: C.text, marginBottom: 12 }}>Estadísticas de clientes</Text>
-        <View style={{ flexDirection: 'row', gap: 10 }}>
-          <View style={{ flex: 1, alignItems: 'center', padding: 12, backgroundColor: C.primary5, borderRadius: 12 }}>
-            <Text style={{ fontSize: 22, fontWeight: '900', color: C.primary2 }}>156</Text>
-            <Text style={{ fontSize: 10, color: C.textSub, fontWeight: '600' }}>Total clientes</Text>
-          </View>
-          <View style={{ flex: 1, alignItems: 'center', padding: 12, backgroundColor: '#ecfdf5', borderRadius: 12 }}>
-            <Text style={{ fontSize: 22, fontWeight: '900', color: C.success }}>142</Text>
-            <Text style={{ fontSize: 10, color: C.textSub, fontWeight: '600' }}>Activos</Text>
-          </View>
-          <View style={{ flex: 1, alignItems: 'center', padding: 12, backgroundColor: '#fffbeb', borderRadius: 12 }}>
-            <Text style={{ fontSize: 22, fontWeight: '900', color: C.warning }}>14</Text>
-            <Text style={{ fontSize: 10, color: C.textSub, fontWeight: '600' }}>Nuevos (mes)</Text>
-          </View>
-        </View>
-      </View>
+      </SectionCard>
     </Animated.View>
   );
 
-  const renderReportesContent = () => (
+  const renderReportes = () => (
     <Animated.View entering={FadeIn.delay(200)}>
-      <View style={s.card}>
-        <Text style={{ fontSize: 16, fontWeight: '800', color: C.text, marginBottom: 12 }}>Reportes generados</Text>
+      <SectionCard title="Reportes generados" icon="document-text-outline" delay={300}>
         {MOCK_REPORTS.map((report, i) => (
-          <Pressable
-            key={report.id}
-            style={({ pressed }) => [
-              { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: i < MOCK_REPORTS.length - 1 ? 1 : 0, borderBottomColor: C.border },
-              pressed && { opacity: 0.7 }
-            ]}
-          >
-            <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: C.primary5, alignItems: 'center', justifyContent: 'center' }}>
-              <Ionicons name="document-text" size={20} color={C.primary2} />
+          <Pressable key={report.id} style={({ pressed }) => [s.listItem, pressed && { opacity: 0.7 }]}>
+            <View style={[secS.iconWrap, { width: 40, height: 40 }]}>
+              <Ionicons name="document-text" size={18} color={C.brandVibrant} />
             </View>
             <View style={{ flex: 1, marginLeft: 12 }}>
               <Text style={{ fontSize: 13, fontWeight: '700', color: C.text }}>{report.title}</Text>
-              <Text style={{ fontSize: 10, color: C.textMuted }}>{report.date} · {report.type}</Text>
-            </View>
-            <View style={{ alignItems: 'flex-end' }}>
-              {report.amount && <Text style={{ fontSize: 12, fontWeight: '800', color: C.text }}>{fmt(report.amount)}</Text>}
-              {report.score && <Text style={{ fontSize: 12, fontWeight: '800', color: C.success }}>{report.score} pts</Text>}
-              {report.growth && <Text style={{ fontSize: 12, fontWeight: '800', color: C.primary2 }}>+{report.growth}%</Text>}
+              <Text style={{ fontSize: 10, color: C.textMuted }}>{report.date}</Text>
             </View>
           </Pressable>
         ))}
-      </View>
-      
-      <View style={[s.card, { marginTop: 10 }]}>
-        <Text style={{ fontSize: 14, fontWeight: '800', color: C.text, marginBottom: 12 }}>KPIs principales</Text>
-        <View style={{ gap: 8 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text style={{ fontSize: 12, color: C.textSub }}>ROI Cartera</Text>
-            <Text style={{ fontSize: 14, fontWeight: '800', color: C.success }}>18.5%</Text>
-          </View>
-          <View style={{ height: 4, backgroundColor: C.primary4, borderRadius: 2 }}>
-            <View style={{ width: '85%', height: 4, backgroundColor: C.success, borderRadius: 2 }} />
-          </View>
-          
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-            <Text style={{ fontSize: 12, color: C.textSub }}>Índice de morosidad</Text>
-            <Text style={{ fontSize: 14, fontWeight: '800', color: C.warning }}>4.2%</Text>
-          </View>
-          <View style={{ height: 4, backgroundColor: C.primary4, borderRadius: 2 }}>
-            <View style={{ width: '28%', height: 4, backgroundColor: C.warning, borderRadius: 2 }} />
-          </View>
-          
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-            <Text style={{ fontSize: 12, color: C.textSub }}>Crecimiento mensual</Text>
-            <Text style={{ fontSize: 14, fontWeight: '800', color: C.primary2 }}>12.3%</Text>
-          </View>
-          <View style={{ height: 4, backgroundColor: C.primary4, borderRadius: 2 }}>
-            <View style={{ width: '72%', height: 4, backgroundColor: C.primary2, borderRadius: 2 }} />
-          </View>
-        </View>
-      </View>
+      </SectionCard>
     </Animated.View>
   );
+
+  // Componentes internos (MetricCard, StatBox, PipeStep)
+  const MetricCard: React.FC<{ icon: string; label: string; value: string; trend: string; up?: boolean; neu?: boolean; delay?: number }> = 
+    ({ icon, label, value, trend, up, neu, delay = 0 }) => {
+    const fg = neu ? C.brandVibrant : up ? C.successMid : C.dangerMid;
+    const bg = neu ? C.brandFaint : up ? C.successBg : C.dangerBg;
+    return (
+      <Animated.View entering={FadeInDown.delay(delay).springify()} style={[secS.card, { flex: 1, padding: 14 }]}>
+        <Ionicons name={icon as any} size={20} color={C.brandVibrant} style={{ marginBottom: 12 }} />
+        <Text style={{ fontSize: 18, fontWeight: '900', color: C.text, letterSpacing: -0.5 }}>{value}</Text>
+        <Text style={{ fontSize: 11, color: C.textMuted, fontWeight: '600', marginTop: 2 }}>{label}</Text>
+        <View style={{ marginTop: 8, paddingHorizontal: 6, paddingVertical: 3, backgroundColor: bg, borderRadius: 8, alignSelf: 'flex-start' }}>
+          <Text style={{ fontSize: 9, fontWeight: '700', color: fg }}>{trend}</Text>
+        </View>
+      </Animated.View>
+    );
+  };
+
+  const StatBox: React.FC<{ label: string; value: string; color: string }> = ({ label, value, color }) => (
+    <View style={[secS.card, { flex: 1, alignItems: 'center', paddingVertical: 16, marginHorizontal: 5 }]}>
+      <Text style={{ fontSize: 22, fontWeight: '900', color: color }}>{value}</Text>
+      <Text style={{ fontSize: 11, color: C.textMuted, fontWeight: '600', marginTop: 4 }}>{label}</Text>
+    </View>
+  );
+
+  const PipeStep: React.FC<{ label: string; count: string; state: 'done' | 'active' | 'next' }> = ({ label, count, state }) => {
+    const bgC = state === 'done' ? C.brandVibrant : state === 'active' ? C.gold : '#f3f4f6';
+    const txtC = state === 'next' ? '#9ca3af' : 'white';
+    const valC = state === 'done' ? C.brandVibrant : state === 'active' ? C.warningMid : '#9ca3af';
+    return (
+      <View style={{ flex: 1, alignItems: 'center' }}>
+        <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: bgC, alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
+          <Text style={{ fontSize: 10, fontWeight: '800', color: txtC }}>{state === 'done' ? '✓' : state === 'active' ? '!' : '○'}</Text>
+        </View>
+        <Text style={{ fontSize: 12, fontWeight: '800', color: valC }}>{count}</Text>
+        <Text style={{ fontSize: 8, color: C.textSec, fontWeight: '600', textAlign: 'center' }}>{label}</Text>
+      </View>
+    );
+  };
 
   return (
     <View style={s.root}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-      {/* Floating nav on scroll */}
-      <RNAnimated.View style={[s.floatNav, { opacity: navOpacity }]}>
-        <BlurView intensity={50} tint="light" style={StyleSheet.absoluteFillObject} />
-        <Text style={s.floatTitle}>Dashboard</Text>
+      <RNAnimated.View style={[s.floatNav, { opacity: navOpacity }]} pointerEvents="box-none">
+        <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFillObject} />
+        <View style={s.floatRow}>
+          <TouchableOpacity style={s.navBtn} onPress={() => navigation.getParent?.()?.openDrawer()}>
+            <Ionicons name="menu-outline" size={20} color={C.text} />
+          </TouchableOpacity>
+          <Text style={s.floatTitle}>Dashboard</Text>
+          <TouchableOpacity style={s.navBtn} onPress={() => go('LoanRequestForm' as any)}>
+            <Ionicons name="add" size={20} color={C.brandVibrant} />
+          </TouchableOpacity>
+        </View>
       </RNAnimated.View>
 
       <RNAnimated.ScrollView
         showsVerticalScrollIndicator={false}
-        onScroll={RNAnimated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
+        onScroll={RNAnimated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
         scrollEventThrottle={16}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary2} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.brandVibrant} colors={[C.brandVibrant]} />}
       >
-        {/* ── HEADER ───────────────────────────────────── */}
-        <LinearGradient
-          colors={[C.primary, '#6d28d9']}
-          start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-          style={s.header}
-        >
-          <View style={s.topRow}>
-            <TouchableOpacity style={s.iconBtn} onPress={() => navigation.getParent?.()?.openDrawer()}>
-              <Ionicons name="menu-outline" size={22} color="white" />
+        <LinearGradient colors={[C.brand, C.brandMid, C.brandVibrant]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.header}>
+          <View style={s.decCircle1} /><View style={s.decCircle2} />
+          
+          <View style={s.headerTop}>
+            <TouchableOpacity style={s.navBtnWhite} onPress={() => navigation.getParent?.()?.openDrawer()}>
+              <Ionicons name="menu-outline" size={20} color="white" />
             </TouchableOpacity>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#34d399' }} />
-              <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', fontWeight: '700', letterSpacing: 1 }}>EN VIVO</Text>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={s.headerLabel}>{greeting} 👋</Text>
+              <Text style={s.headerTitle}>Carlos Méndez</Text>
             </View>
-            <TouchableOpacity style={s.iconBtn}>
-              <Ionicons name="notifications-outline" size={22} color="white" />
+            <TouchableOpacity style={s.navBtnWhite} onPress={() => go('LoanRequestForm' as any)}>
+              <Ionicons name="notifications-outline" size={20} color="white" />
               <View style={s.notifDot} />
             </TouchableOpacity>
           </View>
 
-          <Animated.View entering={FadeInDown.delay(100).springify()} style={{ paddingHorizontal: 20, marginBottom: 18 }}>
-            <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', fontWeight: '500' }}>{greeting} 👋</Text>
-            <Text style={{ fontSize: 24, color: 'white', fontWeight: '900', letterSpacing: -0.5, marginTop: 2 }}>Carlos Méndez</Text>
-          </Animated.View>
-
-          {/* Balance card */}
-          <Animated.View entering={FadeInDown.delay(180).springify()} style={s.balCard}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+          <Animated.View entering={FadeInDown.delay(100).springify()} style={s.balCard}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
               <View>
-                <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', fontWeight: '600', letterSpacing: 0.5, marginBottom: 4 }}>Cartera Total Activa</Text>
-                <Text style={{ fontSize: 30, fontWeight: '900', color: 'white', letterSpacing: -1 }}>{fmt(totalAmount)}</Text>
+                <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', fontWeight: '600', marginBottom: 4 }}>Cartera Total Activa</Text>
+                <Text style={{ fontSize: 30, fontWeight: '900', color: 'white', letterSpacing: -1 }}>{fmtShort(totalAmount)}</Text>
               </View>
-              <View style={{ width: 42, height: 42, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}>
-                <Ionicons name="wallet-outline" size={20} color="rgba(255,255,255,0.8)" />
-              </View>
+              <Ionicons name="wallet-outline" size={24} color="rgba(255,255,255,0.8)" />
             </View>
             <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.15)', marginBottom: 14 }} />
             <View style={{ flexDirection: 'row' }}>
@@ -667,7 +533,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             </View>
           </Animated.View>
 
-          {/* Tabs funcionales */}
+          {/* Tabs */}
           <View style={{ flexDirection: 'row', marginTop: 16, paddingHorizontal: 8 }}>
             {(['Resumen', 'Préstamos', 'Clientes', 'Reportes'] as const).map((tab) => (
               <TouchableOpacity 
@@ -685,123 +551,99 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         </LinearGradient>
 
         <View style={s.body}>
-          {/* ── CONTENIDO DINÁMICO SEGÚN TAB ─────────────── */}
           {renderTabContent()}
 
-          {/* ── DONUT ────────────────────────────────── */}
-          <Text style={s.sectionTitle}>Distribución de cartera</Text>
-          <Animated.View entering={FadeInDown.delay(530).springify()} style={s.card}>
-            <DonutChart />
-          </Animated.View>
+          {/* Donut Chart (Siempre visible al final del Resumen) */}
+          {activeTab === 'Resumen' && (
+            <SectionCard title="Distribución de cartera" icon="pie-chart-outline" delay={530}>
+              <DonutChart />
+            </SectionCard>
+          )}
 
-          {/* ── ACCIONES RÁPIDAS ─────────────────────── */}
-          <View style={s.sectionRow}>
-            <Text style={s.sectionTitle}>Acciones rápidas</Text>
-            <TouchableOpacity><Text style={{ fontSize: 11, color: C.primary2, fontWeight: '700' }}>Ver todo</Text></TouchableOpacity>
-          </View>
-          <View style={s.row}>
-            <QuickAction icon="➕" label="Nuevo préstamo" sub="Registrar cliente" iconBg={C.primary5} onPress={() => go('Loans')} delay={590} />
-            <View style={{ width: 10 }} />
-            <QuickAction icon="📋" label="Cobros del día" sub="12 pendientes" iconBg="#fffbeb" onPress={() => go('Loans')} delay={620} />
-          </View>
-          <View style={{ height: 10 }} />
-          <View style={s.row}>
-            <QuickAction icon="💳" label="Registrar pago" sub="Marcar pagado" iconBg="#ecfdf5" onPress={() => go('Loans')} delay={650} />
-            <View style={{ width: 10 }} />
-            <QuickAction icon="🔔" label="Vencidos" sub="9 en mora" iconBg="#fef2f2" onPress={() => go('Loans')} delay={680} />
-          </View>
-          <View style={{ height: 10 }} />
-          <View style={s.row}>
-            <QuickAction icon="📊" label="Reportes" sub="Exportar PDF" iconBg="#f0fdf4" onPress={() => go('Settings')} delay={710} />
-            <View style={{ width: 10 }} />
-            <QuickAction icon="🔍" label="Evaluar solicitud" sub="18 en revisión" iconBg="#eff6ff" onPress={() => go('Loans')} delay={740} />
-          </View>
+          {/* Acciones Rápidas (Solo en Resumen) */}
+          {activeTab === 'Resumen' && (
+            <>
+              <View style={s.sectionRow}>
+                <Text style={s.sectionTitle}>Acciones rápidas</Text>
+              </View>
+              <View style={s.row}>
+                <QuickAction icon="add-circle" label="Nuevo préstamo" sub="Registrar" bg={C.brandFaint} onPress={() => go('LoanRequestForm' as any)} delay={590} />
+                <View style={{ width: 10 }} />
+                <QuickAction icon="cash" label="Registrar pago" sub="Marcar pagado" bg={C.successBg} onPress={() => go('Loans')} delay={620} />
+              </View>
+              <View style={{ height: 10 }} />
+              <View style={s.row}>
+                <QuickAction icon="alert-circle" label="Vencidos" sub="9 en mora" bg={C.dangerBg} onPress={() => setActiveTab('Préstamos')} delay={650} />
+                <View style={{ width: 10 }} />
+                <QuickAction icon="document-text" label="Reportes" sub="Exportar" bg={C.infoBg} onPress={() => go('Settings')} delay={680} />
+              </View>
+            </>
+          )}
 
-          {/* ── PRÉSTAMOS RECIENTES ───────────────────── */}
-          <View style={[s.sectionRow, { marginTop: 18 }]}>
-            <Text style={s.sectionTitle}>Préstamos recientes</Text>
-            <TouchableOpacity onPress={() => setActiveTab('Préstamos')}>
-              <Text style={{ fontSize: 11, color: C.primary2, fontWeight: '700' }}>Ver todos →</Text>
-            </TouchableOpacity>
-          </View>
-          {loans.slice(0, 4).map((loan, i) => (
-            <Animated.View
-              key={loan.id}
-              entering={SlideInRight.delay(780 + i * 60).springify()}
-              layout={Layout.springify()}
-            >
-              <Pressable
-                style={({ pressed }) => [s.loanRow, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
-                onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
-              >
-                <LoanAvatar name={loan.borrowerName} idx={i} />
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={{ fontSize: 13, fontWeight: '700', color: C.text }} numberOfLines={1}>{loan.borrowerName}</Text>
-                  <Text style={{ fontSize: 10, color: C.textMuted, marginTop: 2 }}>
-                    Cuota {i + 1}/12 · {new Date(loan.createdAt || Date.now()).toLocaleDateString('es-DO', { day: '2-digit', month: 'short' })}
-                  </Text>
-                </View>
-                <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                  <Text style={{ fontSize: 13, fontWeight: '800', color: C.text }}>{fmt(loan.amount)}</Text>
-                  <StatusPill status={loan.status} />
-                </View>
-                <Ionicons name="chevron-forward" size={14} color={C.textMuted} style={{ marginLeft: 6 }} />
-              </Pressable>
-            </Animated.View>
-          ))}
-
-          <View style={{ height: 100 }} />
+          <View style={{ height: 80 }} />
         </View>
       </RNAnimated.ScrollView>
-
- 
     </View>
   );
 };
+
+// Componente QuickAction (Refinado)
+const QuickAction: React.FC<{ icon: string; label: string; sub: string; bg: string; onPress: () => void; delay?: number }> = 
+  ({ icon, label, sub, bg, onPress, delay = 0 }) => (
+  <Animated.View entering={FadeInDown.delay(delay).springify()} style={{ flex: 1 }}>
+    <Pressable
+      onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); }}
+      style={({ pressed }) => [qS.btn, pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] }]}
+    >
+      <View style={[qS.ic, { backgroundColor: bg }]}>
+        <Ionicons name={icon as any} size={20} color={C.brandVibrant} />
+      </View>
+      <Text style={qS.nm}>{label}</Text>
+      <Text style={qS.sb}>{sub}</Text>
+    </Pressable>
+  </Animated.View>
+);
+const qS = StyleSheet.create({
+  btn: { backgroundColor: C.surface, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: C.border, flex: 1 },
+  ic: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  nm: { fontSize: 12, fontWeight: '700', color: C.text },
+  sb: { fontSize: 10, color: C.textMuted, marginTop: 2, fontWeight: '500' },
+});
 
 // ─── Styles ───────────────────────────────────────────────────────
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
 
-  floatNav: {
-    position: 'absolute', top: 0, left: 0, right: 0, zIndex: 99,
-    height: 88, paddingTop: 44,
-    justifyContent: 'center', alignItems: 'center',
-    overflow: 'hidden', borderBottomWidth: 0.5, borderBottomColor: 'rgba(0,0,0,0.08)',
-  },
+  floatNav: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 99, height: 94, paddingTop: 48, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.06)', overflow: 'hidden' },
+  floatRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
   floatTitle: { fontSize: 15, fontWeight: '800', color: C.text },
+  navBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center' },
 
-  header: { paddingTop: 56, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, paddingBottom: 0 },
-
-  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 20 },
-  iconBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
-  notifDot: { position: 'absolute', top: 7, right: 8, width: 7, height: 7, borderRadius: 4, backgroundColor: '#fbbf24', borderWidth: 1.5, borderColor: C.primary },
-
+  header: { paddingTop: 56, paddingBottom: 20, overflow: 'hidden' },
+  decCircle1: { position: 'absolute', width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.05)', top: -60, right: -40 },
+  decCircle2: { position: 'absolute', width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.04)', bottom: 20, left: -20 },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 18 },
+  navBtnWhite: { width: 38, height: 38, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
+  notifDot: { position: 'absolute', top: 7, right: 8, width: 7, height: 7, borderRadius: 4, backgroundColor: '#fbbf24', borderWidth: 1.5, borderColor: C.brand },
+  headerLabel: { fontSize: 12, color: 'rgba(255,255,255,0.6)', fontWeight: '500', marginBottom: 2 },
+  headerTitle: { fontSize: 22, fontWeight: '900', color: '#fff', letterSpacing: -0.4 },
+  
   balCard: { marginHorizontal: 16, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 20, padding: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)' },
-
   tab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabActive: { borderBottomColor: 'white' },
 
-  body: { padding: 16 },
-
-  row: { flexDirection: 'row' },
-  card: { backgroundColor: C.white, borderRadius: 20, padding: 18, marginBottom: 14, borderWidth: 0.5, borderColor: C.border },
-  statCard: { backgroundColor: C.white, borderRadius: 16, padding: 14, borderWidth: 0.5, borderColor: C.border },
-  sectionTitle: { fontSize: 14, fontWeight: '800', color: C.text, marginBottom: 10, marginTop: 6 },
-  sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-
+  body: { padding: 12 },
+  row: { flexDirection: 'row', marginBottom: 10 },
+  sectionTitle: { fontSize: 14, fontWeight: '800', color: C.text, marginBottom: 10, letterSpacing: -0.2 },
+  sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, marginTop: 6 },
+  
   loanRow: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: C.white, borderRadius: 14, padding: 12,
-    marginBottom: 8, borderWidth: 0.5, borderColor: C.border, gap: 10,
+    backgroundColor: C.surface, borderRadius: 14, padding: 12,
+    marginBottom: 8, borderWidth: 1, borderColor: C.border, gap: 10,
   },
-
-  bottomNav: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: C.white,
-    borderTopWidth: 0.5, borderTopColor: 'rgba(0,0,0,0.08)',
-    flexDirection: 'row', paddingBottom: 20, paddingTop: 8,
+  listItem: {
+    flexDirection: 'row', alignItems: 'center', paddingVertical: 10,
+    borderBottomWidth: 1, borderBottomColor: C.border,
   },
-  navItem: { flex: 1, alignItems: 'center', gap: 2 },
-  navLbl: { fontSize: 9, fontWeight: '600', color: C.textMuted },
 });
