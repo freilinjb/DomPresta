@@ -30,6 +30,8 @@ import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import { RootStackParamList } from '../../navigation/types';
+import { useClients } from '../../hooks/useClients';
+import { Client } from '../../types';
 
 const { width: SW } = Dimensions.get('window');
 
@@ -341,6 +343,9 @@ export const ClientFormScreen: React.FC<ClientFormScreenProps> = ({ route, navig
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const scrollY = useRef(new RNAnimated.Value(0)).current;
+  const [existingClient, setExistingClient] = useState<Client | null>(null);
+
+  const { createClient, updateClient, getClient } = useClients(); // Usar el hook de SQLite
 
   const [sections, setSections] = useState({
     personal: true, identification: false, financial: false, address: false,
@@ -348,8 +353,8 @@ export const ClientFormScreen: React.FC<ClientFormScreenProps> = ({ route, navig
   });
 
   const [form, setForm] = useState<ClientFormData>({
-    firstName: '', lastName: '', email: '', phone: '', secondaryPhone: '',
-    documentType: 'cedula', documentNumber: '', monthlyIncome: '', occupation: '',
+    firstName: 'Freilin Jose', lastName: 'Jerez Brito', email: 'freilinjb@gmail.com', phone: '8295261234', secondaryPhone: '',
+    documentType: 'cedula', documentNumber: '03105697175', monthlyIncome: '', occupation: '',
     employer: '', yearsEmployed: '', address: '', city: '', province: '', postalCode: '',
     reference1Name: '', reference1Phone: '', reference1Relationship: '',
     reference2Name: '', reference2Phone: '', reference2Relationship: '',
@@ -375,11 +380,64 @@ export const ClientFormScreen: React.FC<ClientFormScreenProps> = ({ route, navig
     if (clientId) loadClient();
   }, []);
 
+  // ✅ Función loadClient actualizada para usar SQLite
   const loadClient = async () => {
-    setLoading(true);
-    await new Promise(r => setTimeout(r, 800));
-    setForm(MOCK_CLIENT_DATA);
-    setLoading(false);
+    try {
+      setLoading(true);
+      console.log('🔍 Cargando cliente con ID:', clientId);
+
+      const client = await getClient(clientId);
+
+      if (client) {
+        console.log('✅ Cliente encontrado:', client.firstName, client.lastName);
+        setExistingClient(client);
+
+        // Mapear datos del cliente de SQLite al formulario
+        setForm({
+          firstName: client.firstName || '',
+          lastName: client.lastName || '',
+          email: client.email || '',
+          phone: client.phone || '',
+          secondaryPhone: '',
+          documentType: client.documentType || 'cedula',
+          documentNumber: client.documentNumber || '',
+          monthlyIncome: client.monthlyIncome?.toString() || '',
+          occupation: client.occupation || '',
+          employer: '',
+          yearsEmployed: '',
+          address: client.address || '',
+          city: client.city || '',
+          province: '',
+          postalCode: '',
+          reference1Name: '',
+          reference1Phone: '',
+          reference1Relationship: '',
+          reference2Name: '',
+          reference2Phone: '',
+          reference2Relationship: '',
+          preferredContact: 'whatsapp',
+          receiveNotifications: true,
+          receivePromotions: false,
+          notes: '',
+        });
+      } else {
+        console.log('❌ Cliente no encontrado');
+        Alert.alert(
+          'Error',
+          'No se encontró el cliente en la base de datos.',
+          [{ text: 'OK', onPress: () => navigation.goBack() }]
+        );
+      }
+    } catch (error) {
+      console.error('❌ Error al cargar cliente:', error);
+      Alert.alert(
+        'Error',
+        'No se pudo cargar el cliente. Verifica tu conexión a la base de datos.',
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   const set = <K extends keyof ClientFormData>(key: K, value: ClientFormData[K]) => {
@@ -406,8 +464,10 @@ export const ClientFormScreen: React.FC<ClientFormScreenProps> = ({ route, navig
     return Object.keys(e).length === 0;
   };
 
+  // ✅ Función handleSubmit actualizada para guardar en SQLite
   const handleSubmit = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
     if (!validate()) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       const hasPersonalErr = errors.firstName || errors.lastName || errors.email || errors.phone;
@@ -422,17 +482,94 @@ export const ClientFormScreen: React.FC<ClientFormScreenProps> = ({ route, navig
       Alert.alert('Campos incompletos', 'Revisa los campos marcados en rojo.');
       return;
     }
+
     setSaving(true);
+
     try {
-      await new Promise(r => setTimeout(r, 1400));
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('✅ Éxito', clientId ? 'Cliente actualizado.' : 'Cliente creado correctamente.', [
-        { text: 'OK', onPress: () => navigation.goBack() },
-      ]);
-    } catch {
+      // Preparar datos para SQLite
+      const validDocumentType = (form.documentType === 'cedula' || 
+                               form.documentType === 'passport' || 
+                               form.documentType === 'rnc') 
+      ? form.documentType 
+      : 'cedula'; // Valor por defecto
+
+      const clientData = {
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        email: form.email.trim().toLowerCase(),
+        phone: form.phone.trim(),
+        documentType: validDocumentType,
+        documentNumber: form.documentNumber.trim(),
+        monthlyIncome: parseFloat(form.monthlyIncome) || 0,
+        occupation: form.occupation.trim() || 'No especificada',
+        address: form.address.trim() || 'No especificada',
+        city: form.city.trim() || 'No especificada',
+        status: existingClient?.status || 'active' as const,
+        totalLoans: existingClient?.totalLoans || 0,
+        activeLoans: existingClient?.activeLoans || 0,
+        totalAmount: existingClient?.totalAmount || 0,
+        lastContact: new Date().toISOString().split('T')[0],
+        creditScore: existingClient?.creditScore,
+      };
+
+      let savedClient: Client;
+
+      if (clientId) {
+        // Actualizar cliente existente
+        console.log('📝 Actualizando cliente:', clientId);
+        savedClient = await updateClient(clientId, clientData);
+
+        if (!savedClient) {
+          throw new Error('No se pudo actualizar el cliente');
+        }
+
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert(
+          '✅ Cliente Actualizado',
+          'Los datos del cliente se han actualizado correctamente en SQLite.',
+          [{
+            text: 'OK', onPress: () => {
+              // if (onSubmit) onSubmit(savedClient);
+              navigation.goBack();
+            }
+          }]
+        );
+      } else {
+        // Crear nuevo cliente
+        console.log('✨ Creando nuevo cliente');
+        const newClientData = {
+          ...clientData,
+          createdAt: new Date().toISOString(),
+        };
+
+        savedClient = await createClient(newClientData);
+
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert(
+          '✅ Cliente Creado',
+          `El cliente ${savedClient.firstName} ${savedClient.lastName} se ha registrado correctamente en SQLite.`,
+          [{
+            text: 'OK', onPress: () => {
+              // if (onSubmit) onSubmit(savedClient);
+              navigation.goBack();
+            }
+          }]
+        );
+      }
+
+      console.log('💾 Cliente guardado en SQLite:', savedClient.id);
+
+    } catch (error) {
+      console.error('❌ Error al guardar cliente:', error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Error', 'No se pudo guardar el cliente.');
-    } finally { setSaving(false); }
+      Alert.alert(
+        'Error',
+        'No se pudo guardar el cliente en la base de datos SQLite. Verifica los datos e intenta nuevamente.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   const openSections = Object.values(sections).filter(Boolean).length;
