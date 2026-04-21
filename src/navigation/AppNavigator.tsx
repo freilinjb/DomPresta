@@ -21,7 +21,10 @@ import { LoanRequestFormScreen } from '../screens/Forms/LoanRequestFormScreen';
 import { ReportsScreen } from '../screens/Reports/ReportsScreen';
 import { ProfileScreen } from '../screens/Profile/ProfileScreen';
 import { SettingsScreen } from '../screens/Settings/SettingsScreen';
+
 import { ClientsScreen } from '../screens/Clients/ClientsScreen';
+import ClientDetailsScreen from '../screens/Clients/ClientDetailsScreen';
+
 import { VendorsScreen } from '../screens/Vendors/VendorsScreen';
 import { LoanRequestsScreen } from '../screens/LoanRequests/LoanRequestsScreen';
 import { CashRegisterScreen } from '../screens/CashRegister/CashRegisterScreen';
@@ -387,6 +390,14 @@ const AppNavigator = () => {
               title: route.params?.clientId ? 'Editar Cliente' : 'Nuevo Cliente',
             })}
           />
+          <Stack.Screen
+            name="ClientDetails"
+            component={ClientDetailsScreen}
+            options={({ route }) => ({
+              title: 'Detalle del Cliente',
+              headerShown: false, // La pantalla ya tiene su propio header personalizado
+            })}
+        />
           <Stack.Screen
             name="VendorForm"
             component={VendorFormScreen}

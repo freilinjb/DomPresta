@@ -1,6 +1,7 @@
 export type RootStackParamList = {
   Login: undefined;
   MainDrawer: undefined;
+  ClientDetails: { clientId: string };
   LoanDetails: { loanId: string };
   LoanForm: { loanId?: string };
   PaymentForm: { loanId: string };

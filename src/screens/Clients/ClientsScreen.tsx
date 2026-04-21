@@ -27,6 +27,7 @@ import Animated, {
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { MainTabParamList } from '../../navigation/types';
+import { useClients } from '@/hooks/useClients';
 
 const { width } = Dimensions.get('window');
 
@@ -564,8 +565,10 @@ const cardS = StyleSheet.create({
 
 // ─── Main Component ────────────────────────────────────────────────
 export const ClientsScreen: React.FC<ClientsScreenProps> = ({ navigation }) => {
-  const [clients, setClients] = useState<Client[]>([]);
-  const [loading, setLoading] = useState(true);
+    const { clients, loading, loadClients: refreshClients } = useClients();
+
+  // const [clients, setClients] = useState<Client[]>([]);
+  // const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   const [sortType, setSortType] = useState<SortType>('recent');
@@ -575,24 +578,36 @@ export const ClientsScreen: React.FC<ClientsScreenProps> = ({ navigation }) => {
 
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
-    loadClients();
   }, []);
 
-  const loadClients = async () => {
-    try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setClients(MOCK_CLIENTS);
-    } catch (error) {
-      Alert.alert('Error', 'No se pudieron cargar los clientes');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+  // const loadClients = async () => {
+  //   try {
+  //     await new Promise(resolve => setTimeout(resolve, 1000));
+  //     setClients(MOCK_CLIENTS);
+  //   } catch (error) {
+  //     Alert.alert('Error', 'No se pudieron cargar los clientes');
+  //   } finally {
+  //     setLoading(false);
+  //     setRefreshing(false);
+  //   }
+  // };
 
-  const handleRefresh = () => { setRefreshing(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); loadClients(); };
-  const handleAddClient = () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); (navigation as any).navigate('ClientForm'); };
-  const handleClientPress = (client: Client) => { (navigation as any).navigate('ClientDetails', { clientId: client.id }); };
+
+    const handleRefresh = async () => {
+      setRefreshing(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await refreshClients();
+      setRefreshing(false);
+    };
+
+      const handleAddClient = () => { 
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); 
+    (navigation as any).navigate('ClientForm');
+  };
+  
+  const handleClientPress = (client: Client) => { 
+    (navigation as any).navigate('ClientDetails', { clientId: client.id }); 
+  };
 
   const filteredAndSortedClients = useMemo(() => {
     let filtered = [...clients];
