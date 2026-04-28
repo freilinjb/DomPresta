@@ -1,3 +1,4 @@
+// LoansScreen.tsx - Versión actualizada con integración real
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
@@ -29,13 +30,13 @@ import Animated, {
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
-import { LoanService } from '../../services/loanService';
+import { useLoans } from '../../hooks/useLoans';
 import { Loan } from '../../types';
 import { MainTabParamList } from '../../navigation/types';
 
 const { width } = Dimensions.get('window');
 
-// ─── Theme ────────────────────────────────────────────────────────
+// ─── Theme (mantener igual) ────────────────────────────────────────
 const C = {
   primary: '#5b21b6',
   primary2: '#7c3aed',
@@ -62,32 +63,18 @@ interface LoansScreenProps {
   navigation: LoansScreenNavigationProp;
 }
 
-// ─── Tipos de filtro ───────────────────────────────────────────────
-type FilterType = 'all' | 'active' | 'pending' | 'overdue' | 'review';
+type FilterType = 'all' | 'active' | 'pending' | 'overdue' | 'review' | 'paid' | 'cancelled';
 type SortType = 'recent' | 'amount_high' | 'amount_low' | 'name';
 
-// ─── Datos mock mejorados ──────────────────────────────────────────
-const MOCK_LOANS: Loan[] = [
-  { id: '1', borrowerName: 'Juan Rodríguez Méndez', amount: 15750.50, status: 'active', createdAt: '2026-01-15' },
-  { id: '2', borrowerName: 'María Pérez González', amount: 8250.00, status: 'pending', createdAt: '2026-03-20' },
-  { id: '3', borrowerName: 'Carlos García López', amount: 22300.75, status: 'overdue', createdAt: '2025-11-10' },
-  { id: '4', borrowerName: 'Ana Martínez Ruiz', amount: 12500.00, status: 'review', createdAt: '2026-04-05' },
-  { id: '5', borrowerName: 'Roberto Fernández Marte', amount: 18750.25, status: 'active', createdAt: '2025-12-01' },
-  { id: '6', borrowerName: 'Luisa Hernández Díaz', amount: 14300.00, status: 'active', createdAt: '2026-02-28' },
-  { id: '7', borrowerName: 'Pedro Sánchez Vega', amount: 9200.50, status: 'pending', createdAt: '2026-04-12' },
-  { id: '8', borrowerName: 'Sofía Ramírez Castro', amount: 31200.00, status: 'overdue', createdAt: '2025-10-15' },
-  { id: '9', borrowerName: 'Diego Morales Ruiz', amount: 6850.00, status: 'active', createdAt: '2026-03-01' },
-  { id: '10', borrowerName: 'Carmen Vega Torres', amount: 9800.00, status: 'review', createdAt: '2026-04-18' },
-];
-
-// ─── StatusPill Component ──────────────────────────────────────────
+// ─── StatusPill Component (actualizado para más estados) ──────────
 const StatusPill: React.FC<{ status: string }> = ({ status }) => {
   const cfg: Record<string, { label: string; fg: string; bg: string }> = {
-    active: { label: 'Al día', fg: '#059669', bg: '#ecfdf5' },
+    active: { label: 'Activo', fg: '#059669', bg: '#ecfdf5' },
     pending: { label: 'Pendiente', fg: '#d97706', bg: '#fffbeb' },
     overdue: { label: 'Vencido', fg: '#dc2626', bg: '#fef2f2' },
+    paid: { label: 'Pagado', fg: '#059669', bg: '#ecfdf5' },
+    cancelled: { label: 'Cancelado', fg: '#64748b', bg: '#f1f5f9' },
     review: { label: 'En revisión', fg: '#7c3aed', bg: '#f5f3ff' },
-    completed: { label: 'Completado', fg: '#334155', bg: '#f1f5f9' },
   };
   const c = cfg[status] ?? { label: status, fg: '#94a3b8', bg: '#f1f5f9' };
   return (
@@ -97,13 +84,14 @@ const StatusPill: React.FC<{ status: string }> = ({ status }) => {
     </View>
   );
 };
+
 const plS = StyleSheet.create({
   w: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 20, alignSelf: 'flex-start' },
   d: { width: 5, height: 5, borderRadius: 3, marginRight: 4 },
   t: { fontSize: 9, fontWeight: '700', letterSpacing: 0.3 },
 });
 
-// ─── Avatar Component ──────────────────────────────────────────────
+// ─── Avatar Component (mantener igual) ──────────────────────────────
 const AVATAR_GRADIENTS: [string, string][] = [
   ['#7c3aed', '#4f46e5'],
   ['#8b5cf6', '#06b6d4'],
@@ -111,12 +99,10 @@ const AVATAR_GRADIENTS: [string, string][] = [
   ['#059669', '#0891b2'],
   ['#7c3aed', '#059669'],
   ['#a78bfa', '#f59e0b'],
-  ['#ec4899', '#8b5cf6'],
-  ['#14b8a6', '#3b82f6'],
 ];
 
 const LoanAvatar: React.FC<{ name: string; idx: number }> = ({ name, idx }) => {
-  const initials = name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  const initials = name?.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() || '??';
   const [c1, c2] = AVATAR_GRADIENTS[idx % AVATAR_GRADIENTS.length];
   return (
     <View style={{ width: 48, height: 48, borderRadius: 14, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
@@ -126,7 +112,7 @@ const LoanAvatar: React.FC<{ name: string; idx: number }> = ({ name, idx }) => {
   );
 };
 
-// ─── FilterChip Component ──────────────────────────────────────────
+// ─── FilterChip Component (mantener igual) ──────────────────────────
 const FilterChip: React.FC<{
   label: string;
   active: boolean;
@@ -144,6 +130,7 @@ const FilterChip: React.FC<{
     <Text style={[fcS.label, active && fcS.labelActive]}>{label}</Text>
   </TouchableOpacity>
 );
+
 const fcS = StyleSheet.create({
   chip: {
     flexDirection: 'row',
@@ -170,7 +157,7 @@ const fcS = StyleSheet.create({
   },
 });
 
-// ─── StatCard Component ────────────────────────────────────────────
+// ─── StatCard Component (mantener igual) ────────────────────────────
 const StatCard: React.FC<{
   label: string;
   value: string | number;
@@ -198,6 +185,7 @@ const StatCard: React.FC<{
     <Text style={stS.label}>{label}</Text>
   </Pressable>
 );
+
 const stS = StyleSheet.create({
   card: {
     flex: 1,
@@ -230,7 +218,7 @@ const stS = StyleSheet.create({
   },
 });
 
-// ─── SortModal Component ───────────────────────────────────────────
+// ─── SortModal Component (mantener igual) ───────────────────────────
 const SortModal: React.FC<{
   visible: boolean;
   onClose: () => void;
@@ -239,18 +227,13 @@ const SortModal: React.FC<{
 }> = ({ visible, onClose, currentSort, onSelect }) => {
   const options: { value: SortType; label: string; icon: string }[] = [
     { value: 'recent', label: 'Más recientes', icon: 'time-outline' },
-    { value: 'amount_high', label: 'Monto mayor', icon: 'trending-down-outline' },
-    { value: 'amount_low', label: 'Monto menor', icon: 'trending-up-outline' },
-    { value: 'name', label: 'Nombre A-Z', icon: 'text-outline' },
+    { value: 'amount_high', label: 'Monto mayor', icon: 'trending-up-outline' },
+    { value: 'amount_low', label: 'Monto menor', icon: 'trending-down-outline' },
+    { value: 'name', label: 'Cliente A-Z', icon: 'text-outline' },
   ];
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={modalS.overlay} onPress={onClose}>
         <Animated.View entering={ZoomIn.duration(200)} style={modalS.content}>
           <View style={modalS.header}>
@@ -285,6 +268,7 @@ const SortModal: React.FC<{
     </Modal>
   );
 };
+
 const modalS = StyleSheet.create({
   overlay: {
     flex: 1,
@@ -337,37 +321,33 @@ const modalS = StyleSheet.create({
   },
 });
 
-// ─── LoanCard Mejorado ─────────────────────────────────────────────
+// ─── EnhancedLoanCard actualizado para usar Loan real ──────────────
 const EnhancedLoanCard: React.FC<{
   loan: Loan;
   index: number;
   onPress: () => void;
-}> = ({ loan, index, onPress }) => {
+  onDelete?: (id: string) => void;
+}> = ({ loan, index, onPress, onDelete }) => {
   const fmt = (v: number) =>
-    `$${v.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    new Intl.NumberFormat('es-DO', { style: 'currency', currency: 'DOP', minimumFractionDigits: 2 }).format(v);
 
   const getProgressColor = (status: string) => {
     switch (status) {
       case 'active': return C.success;
       case 'pending': return C.warning;
       case 'overdue': return C.danger;
-      case 'review': return C.primary2;
-      default: return C.textMuted;
+      case 'paid': return C.success;
+      case 'cancelled': return C.textMuted;
+      default: return C.primary2;
     }
   };
 
-  const getProgress = (status: string) => {
-    switch (status) {
-      case 'active': return 0.65;
-      case 'pending': return 0.25;
-      case 'overdue': return 0.85;
-      case 'review': return 0.15;
-      default: return 0.5;
-    }
-  };
+  // Calcular progreso basado en remainingBalance
+  const progress = loan.remainingBalance && loan.totalAmount
+    ? Math.max(0, Math.min(1, (loan.totalAmount - loan.remainingBalance) / loan.totalAmount))
+    : 0;
 
-  const progress = getProgress(loan.status);
-  const progressColor = getProgressColor(loan.status);
+  const progressColor = getProgressColor(loan.status || 'active');
 
   return (
     <Animated.View
@@ -379,32 +359,27 @@ const EnhancedLoanCard: React.FC<{
           cardS.container,
           pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
         ]}
-        onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          onPress();
-        }}
+        onPress={onPress}
       >
         <View style={cardS.row}>
-          <LoanAvatar name={loan.borrowerName} idx={index} />
+          <LoanAvatar name={loan.borrowerName || loan.clientId} idx={index} />
           <View style={cardS.info}>
-            <Text style={cardS.name} numberOfLines={1}>{loan.borrowerName}</Text>
+            <Text style={cardS.name} numberOfLines={1}>
+              {loan.borrowerName || `Cliente: ${loan.clientId?.slice(0, 8)}`}
+            </Text>
             <View style={cardS.meta}>
               <Ionicons name="calendar-outline" size={12} color={C.textMuted} />
               <Text style={cardS.date}>
-                {new Date(loan.createdAt || Date.now()).toLocaleDateString('es-DO', {
-                  day: '2-digit',
-                  month: 'short',
-                  year: 'numeric',
-                })}
+                {loan.startDate ? new Date(loan.startDate).toLocaleDateString('es-DO') : 'Fecha no disponible'}
               </Text>
               <View style={cardS.dot} />
               <Ionicons name="document-outline" size={12} color={C.textMuted} />
-              <Text style={cardS.id}>#{loan.id}</Text>
+              <Text style={cardS.id}>#{loan.id?.slice(-8)}</Text>
             </View>
           </View>
           <View style={cardS.amountContainer}>
             <Text style={cardS.amount}>{fmt(loan.amount)}</Text>
-            <StatusPill status={loan.status} />
+            <StatusPill status={loan.status || 'active'} />
           </View>
         </View>
         
@@ -429,6 +404,22 @@ const EnhancedLoanCard: React.FC<{
           </View>
         </View>
 
+        {/* Información adicional */}
+        <View style={cardS.additionalInfo}>
+          <View style={cardS.infoItem}>
+            <Ionicons name="cash-outline" size={12} color={C.textMuted} />
+            <Text style={cardS.infoText}>{loan.paymentFrequency || 'N/A'}</Text>
+          </View>
+          <View style={cardS.infoItem}>
+            <Ionicons name="trending-up-outline" size={12} color={C.textMuted} />
+            <Text style={cardS.infoText}>{loan.interestRate}%</Text>
+          </View>
+          <View style={cardS.infoItem}>
+            <Ionicons name="calendar-outline" size={12} color={C.textMuted} />
+            <Text style={cardS.infoText}>{loan.term} cuotas</Text>
+          </View>
+        </View>
+
         {/* Quick actions */}
         <View style={cardS.actions}>
           <TouchableOpacity
@@ -436,7 +427,7 @@ const EnhancedLoanCard: React.FC<{
             onPress={(e) => {
               e.stopPropagation();
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              Alert.alert('Registrar pago', `Registrar pago para ${loan.borrowerName}`);
+              Alert.alert('Registrar pago', `Registrar pago para préstamo #${loan.id?.slice(-8)}`);
             }}
           >
             <Ionicons name="cash-outline" size={16} color={C.success} />
@@ -447,12 +438,36 @@ const EnhancedLoanCard: React.FC<{
             onPress={(e) => {
               e.stopPropagation();
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              Alert.alert('Recordatorio', `Enviar recordatorio a ${loan.borrowerName}`);
+              Alert.alert('Recordatorio', `Enviar recordatorio para préstamo #${loan.id?.slice(-8)}`);
             }}
           >
             <Ionicons name="notifications-outline" size={16} color={C.primary2} />
             <Text style={[cardS.actionText, { color: C.primary2 }]}>Recordar</Text>
           </TouchableOpacity>
+          {onDelete && (
+            <TouchableOpacity
+              style={[cardS.actionBtn, { backgroundColor: C.dangerBg }]}
+              onPress={(e) => {
+                e.stopPropagation();
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                Alert.alert(
+                  'Eliminar préstamo',
+                  '¿Estás seguro de que deseas eliminar este préstamo?',
+                  [
+                    { text: 'Cancelar', style: 'cancel' },
+                    { 
+                      text: 'Eliminar', 
+                      style: 'destructive',
+                      onPress: () => onDelete(loan.id)
+                    }
+                  ]
+                );
+              }}
+            >
+              <Ionicons name="trash-outline" size={16} color={C.danger} />
+              <Text style={[cardS.actionText, { color: C.danger }]}>Eliminar</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
             style={[cardS.actionBtn, { backgroundColor: C.border }]}
             onPress={(e) => {
@@ -460,7 +475,7 @@ const EnhancedLoanCard: React.FC<{
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
               Alert.alert(
                 'Más opciones',
-                `Opciones para ${loan.borrowerName}`,
+                `Opciones para préstamo #${loan.id?.slice(-8)}`,
                 [
                   { text: 'Editar', onPress: () => console.log('Editar') },
                   { text: 'Ver detalles', onPress: () => onPress() },
@@ -476,6 +491,7 @@ const EnhancedLoanCard: React.FC<{
     </Animated.View>
   );
 };
+
 const cardS = StyleSheet.create({
   container: {
     backgroundColor: C.white,
@@ -561,6 +577,24 @@ const cardS = StyleSheet.create({
     height: '100%',
     borderRadius: 3,
   },
+  additionalInfo: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 12,
+    paddingTop: 8,
+    borderTopWidth: 0.5,
+    borderTopColor: C.border,
+  },
+  infoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  infoText: {
+    fontSize: 11,
+    color: C.textSub,
+    fontWeight: '500',
+  },
   actions: {
     flexDirection: 'row',
     gap: 8,
@@ -580,10 +614,9 @@ const cardS = StyleSheet.create({
   },
 });
 
-// ─── Main Component ────────────────────────────────────────────────
+// ─── Main Component (actualizado para usar useLoans) ────────────────
 export const LoansScreen: React.FC<LoansScreenProps> = ({ navigation }) => {
-  const [loans, setLoans] = useState<Loan[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { loans, loading, loadLoans, deleteLoan } = useLoans();
   const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   const [sortType, setSortType] = useState<SortType>('recent');
@@ -591,35 +624,33 @@ export const LoansScreen: React.FC<LoansScreenProps> = ({ navigation }) => {
   const [showSortModal, setShowSortModal] = useState(false);
   const scrollY = React.useRef(new RNAnimated.Value(0)).current;
 
+  // Cargar préstamos al montar el componente
   useEffect(() => {
     loadLoans();
     navigation.setOptions({
       headerShown: false,
     });
-  }, [navigation]);
+  }, []);
 
-  const loadLoans = async () => {
-    try {
-      // Simular carga de datos
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setLoans(MOCK_LOANS);
-    } catch (error) {
-      console.error('Error loading loans:', error);
-      Alert.alert('Error', 'No se pudieron cargar los préstamos');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setRefreshing(true);
-    loadLoans();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await loadLoans();
+    setRefreshing(false);
   };
 
   const handleLoanPress = (loan: Loan) => {
     (navigation as any).navigate('LoanDetails', { loanId: loan.id });
+  };
+
+  const handleDeleteLoan = async (id: string) => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      await deleteLoan(id);
+      Alert.alert('Éxito', 'Préstamo eliminado correctamente');
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo eliminar el préstamo');
+    }
   };
 
   const handleAddLoan = () => {
@@ -638,16 +669,18 @@ export const LoansScreen: React.FC<LoansScreenProps> = ({ navigation }) => {
 
     // Aplicar búsqueda
     if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
       filtered = filtered.filter(loan =>
-        loan.borrowerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        loan.id.includes(searchQuery)
+        (loan.borrowerName?.toLowerCase().includes(query)) ||
+        loan.id?.toLowerCase().includes(query) ||
+        loan.clientId?.toLowerCase().includes(query)
       );
     }
 
     // Aplicar ordenamiento
     switch (sortType) {
       case 'recent':
-        filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        filtered.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
         break;
       case 'amount_high':
         filtered.sort((a, b) => b.amount - a.amount);
@@ -656,7 +689,7 @@ export const LoansScreen: React.FC<LoansScreenProps> = ({ navigation }) => {
         filtered.sort((a, b) => a.amount - b.amount);
         break;
       case 'name':
-        filtered.sort((a, b) => a.borrowerName.localeCompare(b.borrowerName));
+        filtered.sort((a, b) => (a.borrowerName || '').localeCompare(b.borrowerName || ''));
         break;
     }
 
@@ -669,13 +702,14 @@ export const LoansScreen: React.FC<LoansScreenProps> = ({ navigation }) => {
     const active = loans.filter(l => l.status === 'active').length;
     const pending = loans.filter(l => l.status === 'pending').length;
     const overdue = loans.filter(l => l.status === 'overdue').length;
-    const totalAmount = loans.reduce((sum, l) => sum + l.amount, 0);
+    const paid = loans.filter(l => l.status === 'paid').length;
+    const totalAmount = loans.reduce((sum, l) => sum + (l.totalAmount || l.amount), 0);
     
-    return { total, active, pending, overdue, totalAmount };
+    return { total, active, pending, overdue, paid, totalAmount };
   }, [loans]);
 
-  const fmt = (v: number) =>
-    `$${v.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmtCurrency = (v: number) =>
+    new Intl.NumberFormat('es-DO', { style: 'currency', currency: 'DOP', minimumFractionDigits: 2 }).format(v);
 
   const headerOpacity = scrollY.interpolate({
     inputRange: [0, 60],
@@ -701,7 +735,7 @@ export const LoansScreen: React.FC<LoansScreenProps> = ({ navigation }) => {
     </Animated.View>
   );
 
-  if (loading) {
+  if (loading && loans.length === 0) {
     return (
       <View style={loadS.container}>
         <LinearGradient
@@ -787,7 +821,7 @@ export const LoansScreen: React.FC<LoansScreenProps> = ({ navigation }) => {
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{fmt(stats.totalAmount)}</Text>
+              <Text style={styles.statValue}>{fmtCurrency(stats.totalAmount)}</Text>
               <Text style={styles.statLabel}>Cartera</Text>
             </View>
             <View style={styles.statDivider} />
@@ -805,7 +839,7 @@ export const LoansScreen: React.FC<LoansScreenProps> = ({ navigation }) => {
               <Ionicons name="search" size={18} color={C.textMuted} style={styles.searchIcon} />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Buscar por nombre o ID..."
+                placeholder="Buscar por cliente o ID..."
                 placeholderTextColor={C.textMuted}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
@@ -822,36 +856,11 @@ export const LoansScreen: React.FC<LoansScreenProps> = ({ navigation }) => {
           <Animated.View entering={FadeInDown.delay(180).springify()}>
             <View style={styles.filterHeader}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-                <FilterChip
-                  label="Todos"
-                  active={activeFilter === 'all'}
-                  onPress={() => setActiveFilter('all')}
-                  icon="apps-outline"
-                />
-                <FilterChip
-                  label="Activos"
-                  active={activeFilter === 'active'}
-                  onPress={() => setActiveFilter('active')}
-                  icon="checkmark-circle-outline"
-                />
-                <FilterChip
-                  label="Pendientes"
-                  active={activeFilter === 'pending'}
-                  onPress={() => setActiveFilter('pending')}
-                  icon="time-outline"
-                />
-                <FilterChip
-                  label="Vencidos"
-                  active={activeFilter === 'overdue'}
-                  onPress={() => setActiveFilter('overdue')}
-                  icon="alert-circle-outline"
-                />
-                <FilterChip
-                  label="En revisión"
-                  active={activeFilter === 'review'}
-                  onPress={() => setActiveFilter('review')}
-                  icon="hourglass-outline"
-                />
+                <FilterChip label="Todos" active={activeFilter === 'all'} onPress={() => setActiveFilter('all')} icon="apps-outline" />
+                <FilterChip label="Activos" active={activeFilter === 'active'} onPress={() => setActiveFilter('active')} icon="checkmark-circle-outline" />
+                <FilterChip label="Pendientes" active={activeFilter === 'pending'} onPress={() => setActiveFilter('pending')} icon="time-outline" />
+                <FilterChip label="Vencidos" active={activeFilter === 'overdue'} onPress={() => setActiveFilter('overdue')} icon="alert-circle-outline" />
+                <FilterChip label="Pagados" active={activeFilter === 'paid'} onPress={() => setActiveFilter('paid')} icon="checkmark-done-outline" />
               </ScrollView>
               <TouchableOpacity
                 style={styles.sortButton}
@@ -868,7 +877,7 @@ export const LoansScreen: React.FC<LoansScreenProps> = ({ navigation }) => {
           {/* ── STATS CARDS ──────────────────────────────── */}
           <Animated.View entering={FadeInDown.delay(210).springify()} style={styles.statsRow}>
             <StatCard
-              label="Al día"
+              label="Activos"
               value={stats.active}
               icon="checkmark-circle"
               color={C.success}
@@ -915,6 +924,7 @@ export const LoansScreen: React.FC<LoansScreenProps> = ({ navigation }) => {
                 loan={loan}
                 index={index}
                 onPress={() => handleLoanPress(loan)}
+                onDelete={handleDeleteLoan}
               />
             ))
           ) : (
@@ -927,34 +937,20 @@ export const LoansScreen: React.FC<LoansScreenProps> = ({ navigation }) => {
 
       {/* ── FAB ────────────────────────────────────────── */}
       <Animated.View entering={ZoomIn.delay(300).springify()} style={styles.fab}>
-        <TouchableOpacity
-          style={styles.fabButton}
-          onPress={handleAddLoan}
-          activeOpacity={0.9}
-        >
-          <LinearGradient
-            colors={[C.primary2, C.primary]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.fabGradient}
-          >
+        <TouchableOpacity style={styles.fabButton} onPress={handleAddLoan} activeOpacity={0.9}>
+          <LinearGradient colors={[C.primary2, C.primary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.fabGradient}>
             <Ionicons name="add" size={28} color="white" />
           </LinearGradient>
         </TouchableOpacity>
       </Animated.View>
 
       {/* ─── SORT MODAL ────────────────────────────────── */}
-      <SortModal
-        visible={showSortModal}
-        onClose={() => setShowSortModal(false)}
-        currentSort={sortType}
-        onSelect={setSortType}
-      />
+      <SortModal visible={showSortModal} onClose={() => setShowSortModal(false)} currentSort={sortType} onSelect={setSortType} />
     </View>
   );
 };
 
-// ─── Styles ───────────────────────────────────────────────────────
+// ─── Styles (mantener igual) ───────────────────────────────────────
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -1218,4 +1214,4 @@ const loadS = StyleSheet.create({
     backgroundColor: C.primary2,
     borderRadius: 2,
   },
-}); 
+});

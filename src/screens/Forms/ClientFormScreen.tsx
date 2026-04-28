@@ -386,7 +386,7 @@ export const ClientFormScreen: React.FC<ClientFormScreenProps> = ({ route, navig
       setLoading(true);
       console.log('🔍 Cargando cliente con ID:', clientId);
 
-      const client = await getClient(clientId);
+      const client = await getClient(clientId.toString());
 
       if (client) {
         console.log('✅ Cliente encontrado:', client.firstName, client.lastName);
