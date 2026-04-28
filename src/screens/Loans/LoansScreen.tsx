@@ -1,9 +1,8 @@
-// LoansScreen.tsx - Versión actualizada con integración real
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+// LoansScreen.tsx - Adaptada al diseño unificado
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
-  FlatList,
   TouchableOpacity,
   StyleSheet,
   RefreshControl,
@@ -17,16 +16,14 @@ import {
   ScrollView,
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import Animated, {
   FadeInDown,
-  FadeInRight,
   SlideInRight,
-  Layout,
   ZoomIn,
-  ZoomOut,
+  Layout,
+  FadeIn,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
@@ -36,25 +33,38 @@ import { MainTabParamList } from '../../navigation/types';
 
 const { width } = Dimensions.get('window');
 
-// ─── Theme (mantener igual) ────────────────────────────────────────
+// ─── Design Tokens (Unificado con ClientsScreen y LoanRequestsScreen) ──────────
 const C = {
-  primary: '#5b21b6',
-  primary2: '#7c3aed',
-  primary3: '#a78bfa',
-  primary4: '#ddd6fe',
-  primary5: '#f5f3ff',
-  bg: '#f5f3ff',
-  white: '#ffffff',
-  text: '#1e1b4b',
-  textSub: '#64748b',
-  textMuted: '#94a3b8',
-  border: 'rgba(0,0,0,0.06)',
+  brand: '#1a0533',
+  brandMid: '#3d0f7a',
+  brandVibrant: '#6d28d9',
+  brandLight: '#8b5cf6',
+  brandPale: '#ede9fe',
+  brandFaint: '#f5f3ff',
+  bg: '#f8f7fc',
+  surface: '#ffffff',
+  surfaceHover: '#faf9ff',
+  border: 'rgba(109,40,217,0.08)',
+  borderStrong: 'rgba(109,40,217,0.15)',
+  text: '#0f0a1e',
+  textSec: '#4a4560',
+  textMuted: '#9591a8',
+  textPlaceholder: '#b5b0c8',
   success: '#059669',
+  successMid: '#10b981',
   successBg: '#ecfdf5',
-  warning: '#d97706',
+  warning: '#b45309',
+  warningMid: '#d97706',
   warningBg: '#fffbeb',
-  danger: '#dc2626',
+  danger: '#b91c1c',
+  dangerMid: '#dc2626',
   dangerBg: '#fef2f2',
+  info: '#0369a1',
+  infoMid: '#0284c7',
+  infoBg: '#f0f9ff',
+  review: '#7c3aed',
+  reviewBg: '#f5f3ff',
+  shadow: 'rgba(109,40,217,0.12)',
 };
 
 type LoansScreenNavigationProp = StackNavigationProp<MainTabParamList, 'Loans'>;
@@ -63,206 +73,158 @@ interface LoansScreenProps {
   navigation: LoansScreenNavigationProp;
 }
 
-type FilterType = 'all' | 'active' | 'pending' | 'overdue' | 'review' | 'paid' | 'cancelled';
+type FilterType = 'all' | 'active' | 'pending' | 'overdue' | 'paid' | 'cancelled';
 type SortType = 'recent' | 'amount_high' | 'amount_low' | 'name';
 
-// ─── StatusPill Component (actualizado para más estados) ──────────
-const StatusPill: React.FC<{ status: string }> = ({ status }) => {
-  const cfg: Record<string, { label: string; fg: string; bg: string }> = {
-    active: { label: 'Activo', fg: '#059669', bg: '#ecfdf5' },
-    pending: { label: 'Pendiente', fg: '#d97706', bg: '#fffbeb' },
-    overdue: { label: 'Vencido', fg: '#dc2626', bg: '#fef2f2' },
-    paid: { label: 'Pagado', fg: '#059669', bg: '#ecfdf5' },
-    cancelled: { label: 'Cancelado', fg: '#64748b', bg: '#f1f5f9' },
-    review: { label: 'En revisión', fg: '#7c3aed', bg: '#f5f3ff' },
+// ─── Status Badge (Estilo unificado) ───────────────────────────────────────────
+const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
+  const config: Record<string, { label: string; bg: string; color: string; dot: string }> = {
+    active: { label: 'Activo', bg: C.successBg, color: C.successMid, dot: '#10b981' },
+    pending: { label: 'Pendiente', bg: C.warningBg, color: C.warningMid, dot: '#f59e0b' },
+    overdue: { label: 'Vencido', bg: C.dangerBg, color: C.dangerMid, dot: '#ef4444' },
+    paid: { label: 'Pagado', bg: C.infoBg, color: C.infoMid, dot: '#0284c7' },
+    cancelled: { label: 'Cancelado', bg: C.brandFaint, color: C.textMuted, dot: '#9591a8' },
   };
-  const c = cfg[status] ?? { label: status, fg: '#94a3b8', bg: '#f1f5f9' };
+  const cfg = config[status] ?? { label: status, bg: C.bg, color: C.textMuted, dot: C.textMuted };
   return (
-    <View style={[plS.w, { backgroundColor: c.bg }]}>
-      <View style={[plS.d, { backgroundColor: c.fg }]} />
-      <Text style={[plS.t, { color: c.fg }]}>{c.label}</Text>
+    <View style={[badgeS.pill, { backgroundColor: cfg.bg, borderColor: C.border }]}>
+      <View style={[badgeS.dot, { backgroundColor: cfg.dot }]} />
+      <Text style={[badgeS.text, { color: cfg.color }]}>{cfg.label}</Text>
     </View>
   );
 };
 
-const plS = StyleSheet.create({
-  w: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 20, alignSelf: 'flex-start' },
-  d: { width: 5, height: 5, borderRadius: 3, marginRight: 4 },
-  t: { fontSize: 9, fontWeight: '700', letterSpacing: 0.3 },
+const badgeS = StyleSheet.create({
+  pill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20, borderWidth: 1, gap: 5 },
+  dot: { width: 6, height: 6, borderRadius: 3 },
+  text: { fontSize: 10, fontWeight: '700', letterSpacing: 0.1 },
 });
 
-// ─── Avatar Component (mantener igual) ──────────────────────────────
-const AVATAR_GRADIENTS: [string, string][] = [
-  ['#7c3aed', '#4f46e5'],
-  ['#8b5cf6', '#06b6d4'],
-  ['#f87171', '#f59e0b'],
-  ['#059669', '#0891b2'],
-  ['#7c3aed', '#059669'],
-  ['#a78bfa', '#f59e0b'],
+// ─── Avatar (Estilo unificado) ─────────────────────────────────────────────────
+const AVATAR_PALETTES: [string, string][] = [
+  ['#7c3aed', '#4f46e5'], ['#8b5cf6', '#06b6d4'], ['#f87171', '#f59e0b'],
+  ['#059669', '#0891b2'], ['#7c3aed', '#059669'], ['#a78bfa', '#f59e0b'],
+  ['#ec4899', '#8b5cf6'], ['#14b8a6', '#3b82f6'], ['#f97316', '#ef4444'],
+  ['#6366f1', '#8b5cf6'],
 ];
 
-const LoanAvatar: React.FC<{ name: string; idx: number }> = ({ name, idx }) => {
-  const initials = name?.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() || '??';
-  const [c1, c2] = AVATAR_GRADIENTS[idx % AVATAR_GRADIENTS.length];
+const Avatar: React.FC<{ name: string; index: number; size?: number }> = ({ name, index, size = 46 }) => {
+  const initials = name?.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() || '?';
+  const [c1, c2] = AVATAR_PALETTES[index % AVATAR_PALETTES.length];
+  const radius = size * 0.28;
   return (
-    <View style={{ width: 48, height: 48, borderRadius: 14, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+    <View style={{ width: size, height: size, borderRadius: radius, overflow: 'hidden' }}>
       <LinearGradient colors={[c1, c2]} style={StyleSheet.absoluteFillObject} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
-      <Text style={{ color: 'white', fontSize: 15, fontWeight: '800' }}>{initials}</Text>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ color: 'white', fontSize: size * 0.32, fontWeight: '800' }}>{initials}</Text>
+      </View>
     </View>
   );
 };
 
-// ─── FilterChip Component (mantener igual) ──────────────────────────
+// ─── Filter Chip (Estilo unificado) ────────────────────────────────────────────
 const FilterChip: React.FC<{
   label: string;
   active: boolean;
   onPress: () => void;
-  icon?: string;
-}> = ({ label, active, onPress, icon }) => (
+  count?: number;
+  dotColor?: string;
+}> = ({ label, active, onPress, count, dotColor }) => (
   <TouchableOpacity
-    onPress={() => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      onPress();
-    }}
-    style={[fcS.chip, active && fcS.chipActive]}
+    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); }}
+    style={[chipS.chip, active && chipS.chipActive]}
+    activeOpacity={0.75}
   >
-    {icon && <Ionicons name={icon as any} size={14} color={active ? C.white : C.textMuted} style={{ marginRight: 4 }} />}
-    <Text style={[fcS.label, active && fcS.labelActive]}>{label}</Text>
+    {dotColor && !active && <View style={[chipS.dot, { backgroundColor: dotColor }]} />}
+    <Text style={[chipS.label, active && chipS.labelActive]}>{label}</Text>
+    {count !== undefined && count > 0 && (
+      <View style={[chipS.badge, active && chipS.badgeActive]}>
+        <Text style={[chipS.badgeText, active && chipS.badgeTextActive]}>{count}</Text>
+      </View>
+    )}
   </TouchableOpacity>
 );
 
-const fcS = StyleSheet.create({
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: C.white,
-    borderWidth: 0.5,
-    borderColor: C.border,
-    marginRight: 8,
-  },
-  chipActive: {
-    backgroundColor: C.primary2,
-    borderColor: C.primary2,
-  },
-  label: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: C.textMuted,
-  },
-  labelActive: {
-    color: C.white,
-  },
+const chipS = StyleSheet.create({
+  chip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 9, borderRadius: 22, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, marginRight: 8 },
+  chipActive: { backgroundColor: C.brandVibrant, borderColor: C.brandVibrant },
+  dot: { width: 6, height: 6, borderRadius: 3, marginRight: 5 },
+  label: { fontSize: 13, fontWeight: '600', color: C.textSec },
+  labelActive: { color: '#fff' },
+  badge: { marginLeft: 6, minWidth: 18, height: 18, paddingHorizontal: 4, borderRadius: 9, backgroundColor: C.brandFaint, alignItems: 'center', justifyContent: 'center' },
+  badgeActive: { backgroundColor: 'rgba(255,255,255,0.22)' },
+  badgeText: { fontSize: 10, fontWeight: '800', color: C.brandVibrant },
+  badgeTextActive: { color: '#fff' },
 });
 
-// ─── StatCard Component (mantener igual) ────────────────────────────
+// ─── Stat Card (Estilo unificado) ──────────────────────────────────────────────
 const StatCard: React.FC<{
   label: string;
   value: string | number;
   icon: string;
   color: string;
-  bgColor: string;
+  bg: string;
   onPress?: () => void;
-}> = ({ label, value, icon, color, bgColor, onPress }) => (
+}> = ({ label, value, icon, color, bg, onPress }) => (
   <Pressable
-    onPress={() => {
-      if (onPress) {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        onPress();
-      }
-    }}
-    style={({ pressed }) => [
-      stS.card,
-      pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] },
-    ]}
+    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress?.(); }}
+    style={({ pressed }) => [statS.pill, pressed && { opacity: 0.82 }]}
   >
-    <View style={[stS.iconBg, { backgroundColor: bgColor }]}>
-      <Ionicons name={icon as any} size={20} color={color} />
+    <View style={[statS.iconRing, { backgroundColor: bg }]}>
+      <Ionicons name={icon as any} size={18} color={color} />
     </View>
-    <Text style={stS.value}>{value}</Text>
-    <Text style={stS.label}>{label}</Text>
+    <View>
+      <Text style={[statS.value, { color: C.text }]}>{value}</Text>
+      <Text style={statS.label}>{label}</Text>
+    </View>
   </Pressable>
 );
 
-const stS = StyleSheet.create({
-  card: {
-    flex: 1,
-    backgroundColor: C.white,
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 0.5,
-    borderColor: C.border,
-    alignItems: 'center',
-  },
-  iconBg: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  value: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: C.text,
-    letterSpacing: -0.5,
-  },
-  label: {
-    fontSize: 10,
-    color: C.textMuted,
-    fontWeight: '600',
-    marginTop: 2,
-  },
+const statS = StyleSheet.create({
+  pill: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.surface, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: C.border },
+  iconRing: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  value: { fontSize: 17, fontWeight: '800', letterSpacing: -0.4 },
+  label: { fontSize: 10, color: C.textMuted, fontWeight: '600', marginTop: 1 },
 });
 
-// ─── SortModal Component (mantener igual) ───────────────────────────
+// ─── Sort Modal (Estilo unificado) ─────────────────────────────────────────────
 const SortModal: React.FC<{
   visible: boolean;
   onClose: () => void;
   currentSort: SortType;
-  onSelect: (sort: SortType) => void;
+  onSelect: (s: SortType) => void;
 }> = ({ visible, onClose, currentSort, onSelect }) => {
-  const options: { value: SortType; label: string; icon: string }[] = [
+  const opts: { value: SortType; label: string; icon: string }[] = [
     { value: 'recent', label: 'Más recientes', icon: 'time-outline' },
-    { value: 'amount_high', label: 'Monto mayor', icon: 'trending-up-outline' },
-    { value: 'amount_low', label: 'Monto menor', icon: 'trending-down-outline' },
+    { value: 'amount_high', label: 'Mayor monto', icon: 'arrow-up-circle-outline' },
+    { value: 'amount_low', label: 'Menor monto', icon: 'arrow-down-circle-outline' },
     { value: 'name', label: 'Cliente A-Z', icon: 'text-outline' },
   ];
-
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={modalS.overlay} onPress={onClose}>
-        <Animated.View entering={ZoomIn.duration(200)} style={modalS.content}>
-          <View style={modalS.header}>
-            <Text style={modalS.title}>Ordenar por</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={24} color={C.text} />
-            </TouchableOpacity>
-          </View>
-          {options.map((opt) => (
-            <TouchableOpacity
-              key={opt.value}
-              style={[modalS.option, currentSort === opt.value && modalS.optionActive]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                onSelect(opt.value);
-                onClose();
-              }}
-            >
-              <View style={modalS.optionLeft}>
-                <Ionicons name={opt.icon as any} size={20} color={currentSort === opt.value ? C.primary2 : C.textSub} />
-                <Text style={[modalS.optionLabel, currentSort === opt.value && modalS.optionLabelActive]}>
-                  {opt.label}
-                </Text>
-              </View>
-              {currentSort === opt.value && (
-                <Ionicons name="checkmark-circle" size={20} color={C.primary2} />
-              )}
-            </TouchableOpacity>
-          ))}
+        <Animated.View entering={ZoomIn.duration(180)} style={modalS.sheet}>
+          <View style={modalS.handle} />
+          <Text style={modalS.title}>Ordenar préstamos</Text>
+          {opts.map((o) => {
+            const active = currentSort === o.value;
+            return (
+              <TouchableOpacity
+                key={o.value}
+                style={[modalS.row, active && modalS.rowActive]}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onSelect(o.value); onClose(); }}
+                activeOpacity={0.75}
+              >
+                <View style={[modalS.iconWrap, { backgroundColor: active ? C.brandFaint : '#f5f5f8' }]}>
+                  <Ionicons name={o.icon as any} size={20} color={active ? C.brandVibrant : C.textSec} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[modalS.rowLabel, active && { color: C.brandVibrant }]}>{o.label}</Text>
+                </View>
+                {active && <Ionicons name="checkmark-circle" size={22} color={C.brandVibrant} />}
+              </TouchableOpacity>
+            );
+          })}
         </Animated.View>
       </Pressable>
     </Modal>
@@ -270,222 +232,132 @@ const SortModal: React.FC<{
 };
 
 const modalS = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  content: {
-    backgroundColor: C.white,
-    borderRadius: 24,
-    padding: 20,
-    width: '100%',
-    maxWidth: 350,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: C.text,
-  },
-  option: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-  },
-  optionActive: {
-    backgroundColor: C.primary5,
-  },
-  optionLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  optionLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: C.textSub,
-  },
-  optionLabelActive: {
-    color: C.primary2,
-  },
+  overlay: { flex: 1, backgroundColor: 'rgba(10,5,25,0.55)', justifyContent: 'flex-end' },
+  sheet: { backgroundColor: C.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: 36 },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: C.border, alignSelf: 'center', marginBottom: 20 },
+  title: { fontSize: 17, fontWeight: '800', color: C.text, marginBottom: 16 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 14, marginBottom: 4 },
+  rowActive: { backgroundColor: C.brandFaint },
+  iconWrap: { width: 42, height: 42, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  rowLabel: { fontSize: 15, fontWeight: '700', color: C.text, marginBottom: 1 },
 });
 
-// ─── EnhancedLoanCard actualizado para usar Loan real ──────────────
-const EnhancedLoanCard: React.FC<{
+// ─── Action Button (Estilo unificado) ──────────────────────────────────────────
+const ActionBtn: React.FC<{ icon: string; label: string; color: string; bg: string; onPress: () => void }> = ({ icon, label, color, bg, onPress }) => (
+  <TouchableOpacity
+    style={[actionS.btn, { backgroundColor: bg }]}
+    onPress={(e) => { e.stopPropagation(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); }}
+    activeOpacity={0.78}
+  >
+    <Ionicons name={icon as any} size={14} color={color} />
+    <Text style={[actionS.text, { color }]}>{label}</Text>
+  </TouchableOpacity>
+);
+
+const actionS = StyleSheet.create({
+  btn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 9, borderRadius: 10 },
+  text: { fontSize: 11, fontWeight: '700' },
+});
+
+// ─── Progress Bar (Estilo unificado) ───────────────────────────────────────────
+const ProgressBar: React.FC<{ progress: number; color: string }> = ({ progress, color }) => (
+  <View style={progS.track}>
+    <View style={[progS.fill, { width: `${Math.min(progress * 100, 100)}%`, backgroundColor: color }]} />
+  </View>
+);
+
+const progS = StyleSheet.create({
+  track: { flex: 1, height: 4, backgroundColor: C.border, borderRadius: 2, overflow: 'hidden' },
+  fill: { height: '100%', borderRadius: 2 },
+});
+
+// ─── Loan Card (Estilo unificado) ──────────────────────────────────────────────
+const LoanCard: React.FC<{
   loan: Loan;
   index: number;
   onPress: () => void;
   onDelete?: (id: string) => void;
 }> = ({ loan, index, onPress, onDelete }) => {
-  const fmt = (v: number) =>
-    new Intl.NumberFormat('es-DO', { style: 'currency', currency: 'DOP', minimumFractionDigits: 2 }).format(v);
+  const fmt = (v: number) => `RD$${v.toLocaleString('es-DO', { minimumFractionDigits: 2 })}`;
+  const fullName = loan.borrowerName || `Cliente ${loan.clientId?.slice(0, 8)}`;
 
-  const getProgressColor = (status: string) => {
-    switch (status) {
-      case 'active': return C.success;
-      case 'pending': return C.warning;
-      case 'overdue': return C.danger;
-      case 'paid': return C.success;
-      case 'cancelled': return C.textMuted;
-      default: return C.primary2;
+  const getProgressColor = () => {
+    switch (loan.status) {
+      case 'active': return C.successMid;
+      case 'pending': return C.warningMid;
+      case 'overdue': return C.dangerMid;
+      case 'paid': return C.infoMid;
+      default: return C.textMuted;
     }
   };
 
-  // Calcular progreso basado en remainingBalance
   const progress = loan.remainingBalance && loan.totalAmount
-    ? Math.max(0, Math.min(1, (loan.totalAmount - loan.remainingBalance) / loan.totalAmount))
+    ? (loan.totalAmount - loan.remainingBalance) / loan.totalAmount
     : 0;
 
-  const progressColor = getProgressColor(loan.status || 'active');
-
   return (
-    <Animated.View
-      entering={SlideInRight.delay(100 + index * 50).springify()}
-      layout={Layout.springify()}
-    >
-      <Pressable
-        style={({ pressed }) => [
-          cardS.container,
-          pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
-        ]}
-        onPress={onPress}
-      >
-        <View style={cardS.row}>
-          <LoanAvatar name={loan.borrowerName || loan.clientId} idx={index} />
-          <View style={cardS.info}>
-            <Text style={cardS.name} numberOfLines={1}>
-              {loan.borrowerName || `Cliente: ${loan.clientId?.slice(0, 8)}`}
-            </Text>
-            <View style={cardS.meta}>
-              <Ionicons name="calendar-outline" size={12} color={C.textMuted} />
-              <Text style={cardS.date}>
+    <Animated.View entering={SlideInRight.delay(100 + index * 50).springify()} layout={Layout.springify()}>
+      <Pressable style={({ pressed }) => [cardS.card, pressed && cardS.cardPressed]} onPress={onPress}>
+        <View style={cardS.headerRow}>
+          <Avatar name={fullName} index={index} size={46} />
+          <View style={cardS.headerMid}>
+            <View style={cardS.nameRow}>
+              <Text style={cardS.name} numberOfLines={1}>{fullName}</Text>
+              <StatusBadge status={loan.status || 'active'} />
+            </View>
+            <View style={cardS.metaRow}>
+              <Ionicons name="calendar-outline" size={11} color={C.textMuted} />
+              <Text style={cardS.metaText}>
                 {loan.startDate ? new Date(loan.startDate).toLocaleDateString('es-DO') : 'Fecha no disponible'}
               </Text>
-              <View style={cardS.dot} />
-              <Ionicons name="document-outline" size={12} color={C.textMuted} />
-              <Text style={cardS.id}>#{loan.id?.slice(-8)}</Text>
+              <Text style={cardS.dot}>·</Text>
+              <Ionicons name="document-text-outline" size={11} color={C.textMuted} />
+              <Text style={cardS.metaText}>#{loan.id?.slice(-8)}</Text>
             </View>
           </View>
           <View style={cardS.amountContainer}>
             <Text style={cardS.amount}>{fmt(loan.amount)}</Text>
-            <StatusPill status={loan.status || 'active'} />
           </View>
         </View>
-        
-        {/* Progress bar */}
+
         <View style={cardS.progressSection}>
           <View style={cardS.progressLabels}>
             <Text style={cardS.progressText}>Progreso de pago</Text>
-            <Text style={[cardS.progressPercent, { color: progressColor }]}>
+            <Text style={[cardS.progressPercent, { color: getProgressColor() }]}>
               {Math.round(progress * 100)}%
             </Text>
           </View>
-          <View style={cardS.progressBg}>
-            <View
-              style={[
-                cardS.progressFill,
-                {
-                  width: `${progress * 100}%`,
-                  backgroundColor: progressColor,
-                },
-              ]}
-            />
+          <ProgressBar progress={progress} color={getProgressColor()} />
+        </View>
+
+        <View style={cardS.detailsRow}>
+          <View style={cardS.detailItem}>
+            <Text style={cardS.detailKey}>Plazo</Text>
+            <Text style={cardS.detailVal}>{loan.term} meses</Text>
+          </View>
+          <View style={cardS.divider} />
+          <View style={cardS.detailItem}>
+            <Text style={cardS.detailKey}>Tasa</Text>
+            <Text style={cardS.detailVal}>{loan.interestRate}%</Text>
+          </View>
+          <View style={cardS.divider} />
+          <View style={[cardS.detailItem, { flex: 2 }]}>
+            <Text style={cardS.detailKey}>Frecuencia</Text>
+            <Text style={cardS.detailVal}>{loan.paymentFrequency || 'Mensual'}</Text>
           </View>
         </View>
 
-        {/* Información adicional */}
-        <View style={cardS.additionalInfo}>
-          <View style={cardS.infoItem}>
-            <Ionicons name="cash-outline" size={12} color={C.textMuted} />
-            <Text style={cardS.infoText}>{loan.paymentFrequency || 'N/A'}</Text>
-          </View>
-          <View style={cardS.infoItem}>
-            <Ionicons name="trending-up-outline" size={12} color={C.textMuted} />
-            <Text style={cardS.infoText}>{loan.interestRate}%</Text>
-          </View>
-          <View style={cardS.infoItem}>
-            <Ionicons name="calendar-outline" size={12} color={C.textMuted} />
-            <Text style={cardS.infoText}>{loan.term} cuotas</Text>
-          </View>
-        </View>
-
-        {/* Quick actions */}
         <View style={cardS.actions}>
-          <TouchableOpacity
-            style={[cardS.actionBtn, { backgroundColor: C.successBg }]}
-            onPress={(e) => {
-              e.stopPropagation();
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              Alert.alert('Registrar pago', `Registrar pago para préstamo #${loan.id?.slice(-8)}`);
-            }}
-          >
-            <Ionicons name="cash-outline" size={16} color={C.success} />
-            <Text style={[cardS.actionText, { color: C.success }]}>Pagar</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[cardS.actionBtn, { backgroundColor: C.primary5 }]}
-            onPress={(e) => {
-              e.stopPropagation();
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              Alert.alert('Recordatorio', `Enviar recordatorio para préstamo #${loan.id?.slice(-8)}`);
-            }}
-          >
-            <Ionicons name="notifications-outline" size={16} color={C.primary2} />
-            <Text style={[cardS.actionText, { color: C.primary2 }]}>Recordar</Text>
-          </TouchableOpacity>
+          <ActionBtn icon="cash-outline" label="Pagar" color={C.successMid} bg={C.successBg} onPress={() => Alert.alert('Pagar', `Registrar pago para ${fullName}`)} />
+          <ActionBtn icon="notifications-outline" label="Recordar" color={C.brandVibrant} bg={C.brandFaint} onPress={() => Alert.alert('Recordatorio', `Enviar recordatorio a ${fullName}`)} />
           {onDelete && (
-            <TouchableOpacity
-              style={[cardS.actionBtn, { backgroundColor: C.dangerBg }]}
-              onPress={(e) => {
-                e.stopPropagation();
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                Alert.alert(
-                  'Eliminar préstamo',
-                  '¿Estás seguro de que deseas eliminar este préstamo?',
-                  [
-                    { text: 'Cancelar', style: 'cancel' },
-                    { 
-                      text: 'Eliminar', 
-                      style: 'destructive',
-                      onPress: () => onDelete(loan.id)
-                    }
-                  ]
-                );
-              }}
-            >
-              <Ionicons name="trash-outline" size={16} color={C.danger} />
-              <Text style={[cardS.actionText, { color: C.danger }]}>Eliminar</Text>
-            </TouchableOpacity>
+            <ActionBtn icon="trash-outline" label="Eliminar" color={C.dangerMid} bg={C.dangerBg} onPress={() => {
+              Alert.alert('Eliminar', `¿Eliminar préstamo de ${fullName}?`, [
+                { text: 'Cancelar', style: 'cancel' },
+                { text: 'Eliminar', style: 'destructive', onPress: () => onDelete(loan.id) }
+              ]);
+            }} />
           )}
-          <TouchableOpacity
-            style={[cardS.actionBtn, { backgroundColor: C.border }]}
-            onPress={(e) => {
-              e.stopPropagation();
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              Alert.alert(
-                'Más opciones',
-                `Opciones para préstamo #${loan.id?.slice(-8)}`,
-                [
-                  { text: 'Editar', onPress: () => console.log('Editar') },
-                  { text: 'Ver detalles', onPress: () => onPress() },
-                  { text: 'Cancelar', style: 'cancel' },
-                ]
-              );
-            }}
-          >
-            <Ionicons name="ellipsis-horizontal" size={16} color={C.textSub} />
-          </TouchableOpacity>
         </View>
       </Pressable>
     </Animated.View>
@@ -493,128 +365,59 @@ const EnhancedLoanCard: React.FC<{
 };
 
 const cardS = StyleSheet.create({
-  container: {
-    backgroundColor: C.white,
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 0.5,
-    borderColor: C.border,
-    marginHorizontal: 2,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  info: {
-    flex: 1,
-    minWidth: 0,
-  },
-  name: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: C.text,
-    marginBottom: 4,
-  },
-  meta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  date: {
-    fontSize: 11,
-    color: C.textMuted,
-    fontWeight: '500',
-  },
-  dot: {
-    width: 3,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: C.textMuted,
-    marginHorizontal: 4,
-  },
-  id: {
-    fontSize: 11,
-    color: C.textMuted,
-    fontWeight: '500',
-  },
-  amountContainer: {
-    alignItems: 'flex-end',
-    gap: 6,
-  },
-  amount: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: C.text,
-    letterSpacing: -0.5,
-  },
-  progressSection: {
-    marginTop: 14,
-    marginBottom: 12,
-  },
-  progressLabels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  progressText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: C.textSub,
-  },
-  progressPercent: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  progressBg: {
-    height: 6,
-    backgroundColor: C.primary4,
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 3,
-  },
-  additionalInfo: {
-    flexDirection: 'row',
-    gap: 16,
-    marginBottom: 12,
-    paddingTop: 8,
-    borderTopWidth: 0.5,
-    borderTopColor: C.border,
-  },
-  infoItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  infoText: {
-    fontSize: 11,
-    color: C.textSub,
-    fontWeight: '500',
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 4,
-  },
-  actionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  actionText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
+  card: { backgroundColor: C.surface, borderRadius: 20, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: C.border, shadowColor: C.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2 },
+  cardPressed: { opacity: 0.87, transform: [{ scale: 0.985 }] },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
+  headerMid: { flex: 1, minWidth: 0 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+  name: { fontSize: 15, fontWeight: '700', color: C.text, flex: 1, letterSpacing: -0.2 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  metaText: { fontSize: 11, color: C.textMuted, fontWeight: '500' },
+  dot: { color: C.textMuted, marginHorizontal: 2 },
+  amountContainer: { alignItems: 'flex-end' },
+  amount: { fontSize: 16, fontWeight: '800', color: C.brandVibrant },
+  progressSection: { marginBottom: 12 },
+  progressLabels: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  progressText: { fontSize: 10, color: C.textMuted, fontWeight: '600' },
+  progressPercent: { fontSize: 11, fontWeight: '700' },
+  detailsRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.brandFaint, borderRadius: 12, padding: 10, marginBottom: 12 },
+  detailItem: { flex: 1, alignItems: 'center', gap: 2 },
+  detailKey: { fontSize: 9, color: C.textMuted, fontWeight: '600', textTransform: 'uppercase' },
+  detailVal: { fontSize: 13, fontWeight: '700', color: C.text },
+  divider: { width: 1, height: 28, backgroundColor: C.borderStrong },
+  actions: { flexDirection: 'row', gap: 8, marginTop: 4 },
 });
 
-// ─── Main Component (actualizado para usar useLoans) ────────────────
+// ─── Empty State (Estilo unificado) ────────────────────────────────────────────
+const EmptyState: React.FC<{ query: string; onAdd: () => void }> = ({ query, onAdd }) => (
+  <Animated.View entering={FadeIn.delay(100)} style={emptyS.wrap}>
+    <View style={emptyS.circle}>
+      <Ionicons name={query ? 'search-outline' : 'cash-outline'} size={44} color={C.brandLight} />
+    </View>
+    <Text style={emptyS.title}>{query ? 'Sin resultados' : 'Sin préstamos'}</Text>
+    <Text style={emptyS.sub}>{query ? `No se encontró "${query}"` : 'Agrega el primer préstamo'}</Text>
+    {!query && (
+      <TouchableOpacity style={emptyS.btn} onPress={onAdd}>
+        <LinearGradient colors={[C.brandVibrant, C.brandMid]} style={emptyS.btnGrad}>
+          <Ionicons name="add" size={18} color="#fff" />
+          <Text style={emptyS.btnText}>Nuevo préstamo</Text>
+        </LinearGradient>
+      </TouchableOpacity>
+    )}
+  </Animated.View>
+);
+
+const emptyS = StyleSheet.create({
+  wrap: { alignItems: 'center', paddingVertical: 64, paddingHorizontal: 24 },
+  circle: { width: 96, height: 96, borderRadius: 28, backgroundColor: C.brandFaint, alignItems: 'center', justifyContent: 'center', marginBottom: 20, borderWidth: 1, borderColor: C.border },
+  title: { fontSize: 20, fontWeight: '800', color: C.text, marginBottom: 6 },
+  sub: { fontSize: 14, color: C.textMuted, textAlign: 'center', lineHeight: 20, marginBottom: 28 },
+  btn: { borderRadius: 14, overflow: 'hidden' },
+  btnGrad: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 24, paddingVertical: 14 },
+  btnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
+});
+
+// ─── Main Component ────────────────────────────────────────────────────────────
 export const LoansScreen: React.FC<LoansScreenProps> = ({ navigation }) => {
   const { loans, loading, loadLoans, deleteLoan } = useLoans();
   const [refreshing, setRefreshing] = useState(false);
@@ -622,14 +425,11 @@ export const LoansScreen: React.FC<LoansScreenProps> = ({ navigation }) => {
   const [sortType, setSortType] = useState<SortType>('recent');
   const [searchQuery, setSearchQuery] = useState('');
   const [showSortModal, setShowSortModal] = useState(false);
-  const scrollY = React.useRef(new RNAnimated.Value(0)).current;
+  const scrollY = useRef(new RNAnimated.Value(0)).current;
 
-  // Cargar préstamos al montar el componente
   useEffect(() => {
     loadLoans();
-    navigation.setOptions({
-      headerShown: false,
-    });
+    navigation.setOptions({ headerShown: false });
   }, []);
 
   const handleRefresh = async () => {
@@ -639,125 +439,70 @@ export const LoansScreen: React.FC<LoansScreenProps> = ({ navigation }) => {
     setRefreshing(false);
   };
 
-  const handleLoanPress = (loan: Loan) => {
-    (navigation as any).navigate('LoanDetails', { loanId: loan.id });
-  };
-
-  const handleDeleteLoan = async (id: string) => {
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      await deleteLoan(id);
-      Alert.alert('Éxito', 'Préstamo eliminado correctamente');
-    } catch (error) {
-      Alert.alert('Error', 'No se pudo eliminar el préstamo');
-    }
-  };
-
   const handleAddLoan = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     (navigation as any).navigate('LoanForm');
   };
 
-  // Filtrar y ordenar préstamos
-  const filteredAndSortedLoans = useMemo(() => {
-    let filtered = [...loans];
-
-    // Aplicar filtro por estado
-    if (activeFilter !== 'all') {
-      filtered = filtered.filter(loan => loan.status === activeFilter);
+  const handleDeleteLoan = async (id: string) => {
+    try {
+      await deleteLoan(id);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('✅ Eliminado', 'Préstamo eliminado correctamente');
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo eliminar el préstamo');
     }
+  };
 
-    // Aplicar búsqueda
+  const filteredAndSorted = useMemo(() => {
+    let filtered = [...loans];
+    if (activeFilter !== 'all') {
+      filtered = filtered.filter(l => l.status === activeFilter);
+    }
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(loan =>
-        (loan.borrowerName?.toLowerCase().includes(query)) ||
-        loan.id?.toLowerCase().includes(query) ||
-        loan.clientId?.toLowerCase().includes(query)
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(l =>
+        l.borrowerName?.toLowerCase().includes(q) ||
+        l.id?.toLowerCase().includes(q) ||
+        l.clientId?.toLowerCase().includes(q)
       );
     }
-
-    // Aplicar ordenamiento
     switch (sortType) {
-      case 'recent':
-        filtered.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-        break;
-      case 'amount_high':
-        filtered.sort((a, b) => b.amount - a.amount);
-        break;
-      case 'amount_low':
-        filtered.sort((a, b) => a.amount - b.amount);
-        break;
-      case 'name':
-        filtered.sort((a, b) => (a.borrowerName || '').localeCompare(b.borrowerName || ''));
-        break;
+      case 'recent': filtered.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()); break;
+      case 'amount_high': filtered.sort((a, b) => b.amount - a.amount); break;
+      case 'amount_low': filtered.sort((a, b) => a.amount - b.amount); break;
+      case 'name': filtered.sort((a, b) => (a.borrowerName || '').localeCompare(b.borrowerName || '')); break;
     }
-
     return filtered;
   }, [loans, activeFilter, sortType, searchQuery]);
 
-  // Estadísticas
-  const stats = useMemo(() => {
-    const total = loans.length;
-    const active = loans.filter(l => l.status === 'active').length;
-    const pending = loans.filter(l => l.status === 'pending').length;
-    const overdue = loans.filter(l => l.status === 'overdue').length;
-    const paid = loans.filter(l => l.status === 'paid').length;
-    const totalAmount = loans.reduce((sum, l) => sum + (l.totalAmount || l.amount), 0);
-    
-    return { total, active, pending, overdue, paid, totalAmount };
-  }, [loans]);
+  const stats = useMemo(() => ({
+    total: loans.length,
+    active: loans.filter(l => l.status === 'active').length,
+    pending: loans.filter(l => l.status === 'pending').length,
+    overdue: loans.filter(l => l.status === 'overdue').length,
+    totalAmount: loans.reduce((sum, l) => sum + (l.totalAmount || l.amount), 0),
+  }), [loans]);
 
-  const fmtCurrency = (v: number) =>
-    new Intl.NumberFormat('es-DO', { style: 'currency', currency: 'DOP', minimumFractionDigits: 2 }).format(v);
+  const fmtShort = (v: number): string => {
+    if (v >= 1_000_000) return `RD$${(v / 1_000_000).toFixed(1)}M`;
+    if (v >= 1_000) return `RD$${(v / 1_000).toFixed(1)}K`;
+    return `RD$${v.toFixed(0)}`;
+  };
 
-  const headerOpacity = scrollY.interpolate({
-    inputRange: [0, 60],
-    outputRange: [0, 1],
-    extrapolate: 'clamp',
-  });
-
-  const renderEmpty = () => (
-    <Animated.View entering={FadeInDown.delay(200)} style={emptyS.container}>
-      <View style={emptyS.iconBg}>
-        <Ionicons name="document-text-outline" size={48} color={C.primary2} />
-      </View>
-      <Text style={emptyS.title}>No hay préstamos</Text>
-      <Text style={emptyS.subtitle}>
-        {searchQuery ? 'No se encontraron resultados' : 'Agrega tu primer préstamo'}
-      </Text>
-      {!searchQuery && (
-        <TouchableOpacity style={emptyS.button} onPress={handleAddLoan}>
-          <Text style={emptyS.buttonText}>Crear préstamo</Text>
-          <Ionicons name="arrow-forward" size={16} color="white" />
-        </TouchableOpacity>
-      )}
-    </Animated.View>
-  );
+  const navOpacity = scrollY.interpolate({ inputRange: [0, 70], outputRange: [0, 1], extrapolate: 'clamp' });
 
   if (loading && loans.length === 0) {
     return (
-      <View style={loadS.container}>
-        <LinearGradient
-          colors={[C.primary, '#6d28d9']}
-          style={loadS.gradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        />
-        <Animated.View entering={ZoomIn.duration(400)} style={loadS.content}>
-          <View style={loadS.iconBg}>
-            <Ionicons name="cash" size={40} color={C.primary2} />
+      <View style={{ flex: 1, backgroundColor: C.bg }}>
+        <LinearGradient colors={[C.brand, C.brandMid, C.brandVibrant]} style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 300 }} />
+        <Animated.View entering={ZoomIn.duration(400)} style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ width: 76, height: 76, borderRadius: 22, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
+            <Ionicons name="cash" size={36} color={C.brandVibrant} />
           </View>
-          <Text style={loadS.title}>Cargando préstamos...</Text>
-          <View style={loadS.progressBg}>
-            <Animated.View
-              style={[
-                loadS.progressFill,
-                {
-                  width: '60%',
-                },
-              ]}
-            />
+          <Text style={{ fontSize: 17, fontWeight: '700', color: C.text, marginBottom: 16 }}>Cargando préstamos…</Text>
+          <View style={{ width: 200, height: 4, backgroundColor: C.brandPale, borderRadius: 2, overflow: 'hidden' }}>
+            <Animated.View style={{ width: '60%', height: '100%', backgroundColor: C.brandVibrant, borderRadius: 2 }} />
           </View>
         </Animated.View>
       </View>
@@ -765,453 +510,179 @@ export const LoansScreen: React.FC<LoansScreenProps> = ({ navigation }) => {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={s.root}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-      {/* Floating header on scroll */}
-      <RNAnimated.View style={[styles.floatNav, { opacity: headerOpacity }]}>
-        <BlurView intensity={50} tint="light" style={StyleSheet.absoluteFillObject} />
-        <View style={styles.floatContent}>
-          <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.getParent?.()?.openDrawer()}>
-            <Ionicons name="menu-outline" size={22} color={C.text} />
+      <RNAnimated.View style={[s.floatNav, { opacity: navOpacity }]} pointerEvents="box-none">
+        <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFillObject} />
+        <View style={s.floatRow}>
+          <TouchableOpacity style={s.navBtn} onPress={() => navigation.getParent?.()?.openDrawer()}>
+            <Ionicons name="menu-outline" size={20} color={C.text} />
           </TouchableOpacity>
-          <Text style={styles.floatTitle}>Préstamos</Text>
-          <TouchableOpacity style={styles.iconBtn} onPress={handleAddLoan}>
-            <Ionicons name="add" size={22} color={C.text} />
+          <Text style={s.floatTitle}>Préstamos</Text>
+          <TouchableOpacity style={[s.navBtn, { backgroundColor: C.brandFaint }]} onPress={handleAddLoan}>
+            <Ionicons name="add" size={20} color={C.brandVibrant} />
           </TouchableOpacity>
         </View>
       </RNAnimated.View>
 
       <RNAnimated.ScrollView
         showsVerticalScrollIndicator={false}
-        onScroll={RNAnimated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: true }
-        )}
+        onScroll={RNAnimated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
         scrollEventThrottle={16}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            tintColor={C.primary2}
-          />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={C.brandVibrant} colors={[C.brandVibrant]} />}
       >
-        {/* ── HEADER ───────────────────────────────────── */}
-        <LinearGradient
-          colors={[C.primary, '#6d28d9']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.header}
-        >
-          <View style={styles.topRow}>
-            <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.getParent?.()?.openDrawer()}>
-              <Ionicons name="menu-outline" size={22} color="white" />
+        <LinearGradient colors={[C.brand, C.brandMid, C.brandVibrant]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.header}>
+          <View style={s.decCircle1} /><View style={s.decCircle2} />
+
+          <View style={s.headerTop}>
+            <TouchableOpacity style={s.navBtnWhite} onPress={() => navigation.getParent?.()?.openDrawer()}>
+              <Ionicons name="menu-outline" size={20} color="white" />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Préstamos</Text>
-            <TouchableOpacity style={styles.iconBtn} onPress={handleAddLoan}>
-              <Ionicons name="add" size={22} color="white" />
+            <View style={{ alignItems: 'center' }}>
+              <Text style={s.headerLabel}>GESTIÓN</Text>
+              <Text style={s.headerTitle}>Préstamos</Text>
+            </View>
+            <TouchableOpacity style={s.navBtnWhite} onPress={handleAddLoan}>
+              <Ionicons name="add" size={20} color="white" />
             </TouchableOpacity>
           </View>
 
-          <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.headerStats}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{stats.total}</Text>
-              <Text style={styles.statLabel}>Total</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{fmtCurrency(stats.totalAmount)}</Text>
-              <Text style={styles.statLabel}>Cartera</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{stats.active}</Text>
-              <Text style={styles.statLabel}>Activos</Text>
-            </View>
+          <Animated.View entering={FadeInDown.delay(100).springify()} style={s.headerStatsRow}>
+            <View style={s.hStat}><Text style={s.hStatVal}>{stats.total}</Text><Text style={s.hStatLbl}>Total</Text></View>
+            <View style={s.hDivider} />
+            <View style={s.hStat}><Text style={s.hStatVal}>{stats.active}</Text><Text style={s.hStatLbl}>Activos</Text></View>
+            <View style={s.hDivider} />
+            <View style={s.hStat}><Text style={s.hStatVal}>{stats.pending}</Text><Text style={s.hStatLbl}>Pendientes</Text></View>
+            <View style={s.hDivider} />
+            <View style={s.hStat}><Text style={[s.hStatVal, stats.overdue > 0 && { color: '#fbbf24' }]}>{stats.overdue}</Text><Text style={s.hStatLbl}>Vencidos</Text></View>
+          </Animated.View>
+
+          <Animated.View entering={FadeInDown.delay(160).springify()} style={s.amountBanner}>
+            <Ionicons name="cash-outline" size={16} color="rgba(255,255,255,0.7)" />
+            <Text style={s.amountBannerLabel}>Cartera total: </Text>
+            <Text style={s.amountBannerVal}>{fmtShort(stats.totalAmount)}</Text>
           </Animated.View>
         </LinearGradient>
 
-        <View style={styles.body}>
-          {/* ── SEARCH BAR ───────────────────────────────── */}
-          <Animated.View entering={FadeInDown.delay(150).springify()}>
-            <View style={styles.searchContainer}>
-              <Ionicons name="search" size={18} color={C.textMuted} style={styles.searchIcon} />
+        <View style={s.body}>
+          <Animated.View entering={FadeInDown.delay(120).springify()}>
+            <View style={s.searchBox}>
+              <Ionicons name="search" size={17} color={C.textMuted} />
               <TextInput
-                style={styles.searchInput}
-                placeholder="Buscar por cliente o ID..."
-                placeholderTextColor={C.textMuted}
+                style={s.searchInput}
+                placeholder="Buscar por cliente o ID…"
+                placeholderTextColor={C.textPlaceholder}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
               />
-              {searchQuery !== '' && (
-                <TouchableOpacity onPress={() => setSearchQuery('')}>
-                  <Ionicons name="close-circle" size={18} color={C.textMuted} />
-                </TouchableOpacity>
-              )}
+              {searchQuery !== '' && <TouchableOpacity onPress={() => setSearchQuery('')}><Ionicons name="close-circle" size={17} color={C.textMuted} /></TouchableOpacity>}
             </View>
           </Animated.View>
 
-          {/* ─── FILTROS ─────────────────────────────────── */}
-          <Animated.View entering={FadeInDown.delay(180).springify()}>
-            <View style={styles.filterHeader}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-                <FilterChip label="Todos" active={activeFilter === 'all'} onPress={() => setActiveFilter('all')} icon="apps-outline" />
-                <FilterChip label="Activos" active={activeFilter === 'active'} onPress={() => setActiveFilter('active')} icon="checkmark-circle-outline" />
-                <FilterChip label="Pendientes" active={activeFilter === 'pending'} onPress={() => setActiveFilter('pending')} icon="time-outline" />
-                <FilterChip label="Vencidos" active={activeFilter === 'overdue'} onPress={() => setActiveFilter('overdue')} icon="alert-circle-outline" />
-                <FilterChip label="Pagados" active={activeFilter === 'paid'} onPress={() => setActiveFilter('paid')} icon="checkmark-done-outline" />
+          <Animated.View entering={FadeInDown.delay(150).springify()}>
+            <View style={s.filterRow}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 8 }}>
+                <FilterChip label="Todos" active={activeFilter === 'all'} onPress={() => setActiveFilter('all')} count={stats.total} />
+                <FilterChip label="Activos" active={activeFilter === 'active'} onPress={() => setActiveFilter('active')} count={stats.active} dotColor="#10b981" />
+                <FilterChip label="Pendientes" active={activeFilter === 'pending'} onPress={() => setActiveFilter('pending')} count={stats.pending} dotColor="#f59e0b" />
+                <FilterChip label="Vencidos" active={activeFilter === 'overdue'} onPress={() => setActiveFilter('overdue')} count={stats.overdue} dotColor="#ef4444" />
+                <FilterChip label="Pagados" active={activeFilter === 'paid'} onPress={() => setActiveFilter('paid')} count={loans.filter(l => l.status === 'paid').length} dotColor="#0284c7" />
               </ScrollView>
               <TouchableOpacity
-                style={styles.sortButton}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setShowSortModal(true);
-                }}
+                style={[s.sortBtn, showSortModal && { backgroundColor: C.brandFaint, borderColor: C.brandVibrant }]}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowSortModal(true); }}
               >
-                <Ionicons name="swap-vertical" size={18} color={C.primary2} />
+                <Ionicons name="swap-vertical" size={18} color={showSortModal ? C.brandVibrant : C.textSec} />
               </TouchableOpacity>
             </View>
           </Animated.View>
 
-          {/* ── STATS CARDS ──────────────────────────────── */}
-          <Animated.View entering={FadeInDown.delay(210).springify()} style={styles.statsRow}>
-            <StatCard
-              label="Activos"
-              value={stats.active}
-              icon="checkmark-circle"
-              color={C.success}
-              bgColor={C.successBg}
-              onPress={() => setActiveFilter('active')}
-            />
+          <Animated.View entering={FadeInDown.delay(180).springify()} style={s.pillRow}>
+            <StatCard icon="checkmark-circle" label="Activos" value={stats.active} color={C.successMid} bg={C.successBg} onPress={() => setActiveFilter('active')} />
             <View style={{ width: 8 }} />
-            <StatCard
-              label="Pendientes"
-              value={stats.pending}
-              icon="time"
-              color={C.warning}
-              bgColor={C.warningBg}
-              onPress={() => setActiveFilter('pending')}
-            />
+            <StatCard icon="time" label="Pendientes" value={stats.pending} color={C.warningMid} bg={C.warningBg} onPress={() => setActiveFilter('pending')} />
             <View style={{ width: 8 }} />
-            <StatCard
-              label="Vencidos"
-              value={stats.overdue}
-              icon="alert-circle"
-              color={C.danger}
-              bgColor={C.dangerBg}
-              onPress={() => setActiveFilter('overdue')}
-            />
+            <StatCard icon="alert-circle" label="Vencidos" value={stats.overdue} color={C.dangerMid} bg={C.dangerBg} onPress={() => setActiveFilter('overdue')} />
           </Animated.View>
 
-          {/* ── RESULTS COUNT ────────────────────────────── */}
-          <View style={styles.resultsHeader}>
-            <Text style={styles.resultsCount}>
-              {filteredAndSortedLoans.length} {filteredAndSortedLoans.length === 1 ? 'préstamo' : 'préstamos'}
+          <Animated.View entering={FadeInDown.delay(200).springify()} style={s.resultsBar}>
+            <Text style={s.resultsCount}>
+              <Text style={{ color: C.brandVibrant, fontWeight: '800' }}>{filteredAndSorted.length}</Text>
+              {' '}{filteredAndSorted.length === 1 ? 'préstamo' : 'préstamos'}
             </Text>
-            {activeFilter !== 'all' && (
-              <TouchableOpacity onPress={() => setActiveFilter('all')}>
-                <Text style={styles.clearFilter}>Limpiar filtro</Text>
+            {(activeFilter !== 'all' || searchQuery) && (
+              <TouchableOpacity onPress={() => { setActiveFilter('all'); setSearchQuery(''); }} style={s.clearBtn}>
+                <Ionicons name="close" size={12} color={C.brandVibrant} />
+                <Text style={s.clearText}>Limpiar</Text>
               </TouchableOpacity>
             )}
-          </View>
+          </Animated.View>
 
-          {/* ── LOANS LIST ───────────────────────────────── */}
-          {filteredAndSortedLoans.length > 0 ? (
-            filteredAndSortedLoans.map((loan, index) => (
-              <EnhancedLoanCard
+          {filteredAndSorted.length > 0 ? (
+            filteredAndSorted.map((loan, i) => (
+              <LoanCard
                 key={loan.id}
                 loan={loan}
-                index={index}
-                onPress={() => handleLoanPress(loan)}
+                index={i}
+                onPress={() => (navigation as any).navigate('LoanDetails', { loanId: loan.id })}
                 onDelete={handleDeleteLoan}
               />
             ))
           ) : (
-            renderEmpty()
+            <EmptyState query={searchQuery} onAdd={handleAddLoan} />
           )}
 
-          <View style={{ height: 20 }} />
+          <View style={{ height: 100 }} />
         </View>
       </RNAnimated.ScrollView>
 
-      {/* ── FAB ────────────────────────────────────────── */}
-      <Animated.View entering={ZoomIn.delay(300).springify()} style={styles.fab}>
-        <TouchableOpacity style={styles.fabButton} onPress={handleAddLoan} activeOpacity={0.9}>
-          <LinearGradient colors={[C.primary2, C.primary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.fabGradient}>
+      <Animated.View entering={ZoomIn.delay(350).springify()} style={s.fab}>
+        <TouchableOpacity onPress={handleAddLoan} activeOpacity={0.88} style={s.fabInner}>
+          <LinearGradient colors={[C.brandLight, C.brandVibrant, C.brandMid]} style={s.fabGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
             <Ionicons name="add" size={28} color="white" />
           </LinearGradient>
         </TouchableOpacity>
       </Animated.View>
 
-      {/* ─── SORT MODAL ────────────────────────────────── */}
       <SortModal visible={showSortModal} onClose={() => setShowSortModal(false)} currentSort={sortType} onSelect={setSortType} />
     </View>
   );
 };
 
-// ─── Styles (mantener igual) ───────────────────────────────────────
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: C.bg,
-  },
-  floatNav: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 99,
-    height: 100,
-    paddingTop: 50,
-    overflow: 'hidden',
-    borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(0,0,0,0.08)',
-  },
-  floatContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-  },
-  floatTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: C.text,
-  },
-  header: {
-    paddingTop: 56,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
-    paddingBottom: 20,
-  },
-  topRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  iconBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: 'white',
-    letterSpacing: -0.5,
-  },
-  headerStats: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    marginTop: 8,
-  },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: 'white',
-    letterSpacing: -0.5,
-  },
-  statLabel: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.7)',
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  statDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-  },
-  body: {
-    padding: 16,
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: C.white,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 4,
-    marginBottom: 14,
-    borderWidth: 0.5,
-    borderColor: C.border,
-  },
-  searchIcon: {
-    marginRight: 10,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    paddingVertical: 12,
-    color: C.text,
-  },
-  filterHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  filterScroll: {
-    flex: 1,
-  },
-  sortButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: C.white,
-    borderWidth: 0.5,
-    borderColor: C.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 8,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    marginBottom: 16,
-  },
-  resultsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  resultsCount: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: C.textSub,
-  },
-  clearFilter: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: C.primary2,
-  },
-  fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    zIndex: 100,
-  },
-  fabButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    overflow: 'hidden',
-    elevation: 6,
-    shadowColor: C.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
-  fabGradient: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
-
-const emptyS = StyleSheet.create({
-  container: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: 20,
-  },
-  iconBg: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
-    backgroundColor: C.primary5,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: C.text,
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: C.textMuted,
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  button: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: C.primary2,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  buttonText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: 'white',
-  },
-});
-
-const loadS = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: C.bg,
-  },
-  gradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 300,
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  iconBg: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
-    backgroundColor: C.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 24,
-    shadowColor: C.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: C.text,
-    marginBottom: 16,
-  },
-  progressBg: {
-    width: 200,
-    height: 4,
-    backgroundColor: C.primary4,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: C.primary2,
-    borderRadius: 2,
-  },
+// ─── Styles (Unificados) ──────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: C.bg },
+  floatNav: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 99, height: 94, paddingTop: 48, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.06)', overflow: 'hidden' },
+  floatRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
+  floatTitle: { fontSize: 15, fontWeight: '800', color: C.text, flex: 1, textAlign: 'center' },
+  navBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center' },
+  header: { paddingTop: 56, paddingBottom: 20, paddingHorizontal: 20, overflow: 'hidden' },
+  decCircle1: { position: 'absolute', width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.05)', top: -60, right: -40 },
+  decCircle2: { position: 'absolute', width: 130, height: 130, borderRadius: 65, backgroundColor: 'rgba(255,255,255,0.04)', bottom: 10, left: -30 },
+  headerTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 22 },
+  navBtnWhite: { width: 38, height: 38, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
+  headerLabel: { fontSize: 10, color: 'rgba(255,255,255,0.55)', fontWeight: '700', letterSpacing: 2, marginBottom: 2 },
+  headerTitle: { fontSize: 18, fontWeight: '900', color: '#fff', letterSpacing: -0.4 },
+  headerStatsRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 16, padding: 16, marginBottom: 12 },
+  hStat: { flex: 1, alignItems: 'center' },
+  hStatVal: { fontSize: 22, fontWeight: '900', color: '#fff', letterSpacing: -0.6 },
+  hStatLbl: { fontSize: 10, color: 'rgba(255,255,255,0.6)', fontWeight: '600', marginTop: 2 },
+  hDivider: { width: 1, height: 32, backgroundColor: 'rgba(255,255,255,0.15)' },
+  amountBanner: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9 },
+  amountBannerLabel: { fontSize: 12, color: 'rgba(255,255,255,0.65)', fontWeight: '600' },
+  amountBannerVal: { fontSize: 14, color: '#fff', fontWeight: '800' },
+  body: { padding: 16 },
+  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.surface, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 3, marginBottom: 14, borderWidth: 1.5, borderColor: C.border, gap: 10 },
+  searchInput: { flex: 1, fontSize: 14, paddingVertical: 11, color: C.text, fontWeight: '500' },
+  filterRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
+  sortBtn: { width: 42, height: 42, borderRadius: 12, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
+  pillRow: { flexDirection: 'row', marginBottom: 14 },
+  resultsBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  resultsCount: { fontSize: 13, color: C.textSec, fontWeight: '600' },
+  clearBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: C.brandFaint, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
+  clearText: { fontSize: 12, color: C.brandVibrant, fontWeight: '700' },
+  fab: { position: 'absolute', bottom: 28, right: 20, zIndex: 100, shadowColor: C.brandVibrant, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 8 },
+  fabInner: { width: 58, height: 58, borderRadius: 29, overflow: 'hidden' },
+  fabGrad: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
 });

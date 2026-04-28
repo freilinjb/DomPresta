@@ -1,10 +1,10 @@
-import React from 'react';
-import { StatusBar, Platform, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
-import { createStackNavigator } from '@react-navigation/stack';
+// AppNavigator.tsx
+import React, { useEffect, useState, useCallback } from 'react';
+import { StatusBar, View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Image } from 'react-native';
+import { NavigationContainer, DefaultTheme, useFocusEffect } from '@react-navigation/native';
+import { createStackNavigator, StackNavigationOptions } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createDrawerNavigator, DrawerContentScrollView, DrawerItem } from '@react-navigation/drawer';
-import { BlurView } from 'expo-blur';
+import { createDrawerNavigator, DrawerContentScrollView, DrawerContentComponentProps } from '@react-navigation/drawer';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,28 +21,26 @@ import { LoanRequestFormScreen } from '../screens/Forms/LoanRequestFormScreen';
 import { ReportsScreen } from '../screens/Reports/ReportsScreen';
 import { ProfileScreen } from '../screens/Profile/ProfileScreen';
 import { SettingsScreen } from '../screens/Settings/SettingsScreen';
-
 import { ClientsScreen } from '../screens/Clients/ClientsScreen';
 import ClientDetailsScreen from '../screens/Clients/ClientDetailsScreen';
-
 import { VendorsScreen } from '../screens/Vendors/VendorsScreen';
 import { LoanRequestsScreen } from '../screens/LoanRequests/LoanRequestsScreen';
 import { CashRegisterScreen } from '../screens/CashRegister/CashRegisterScreen';
 import { RootStackParamList, MainTabParamList, DrawerParamList } from './types';
 import BottomTabBar from './BottomTabBar';
 import ScreenWithTab from './ScreenWithTab';
+import { AuthService, User } from '../services/authService';
 
 // ─── Design System ────────────────────────────────────────────────────────────
 const DS = {
-  // Paleta principal — violeta profundo → índigo
   colors: {
-    grad0: '#3b0764',   // violeta muy oscuro
-    grad1: '#5b21b6',   // violeta principal
-    grad2: '#6d28d9',   // violeta medio
-    grad3: '#7c3aed',   // violeta claro
-    accent: '#a78bfa',  // lavanda
+    grad0: '#3b0764',
+    grad1: '#5b21b6',
+    grad2: '#6d28d9',
+    grad3: '#7c3aed',
+    accent: '#a78bfa',
     accentSoft: '#ddd6fe',
-    surface: '#f5f3ff', // fondo general
+    surface: '#f5f3ff',
     surfaceCard: '#ffffff',
     text: '#1e1b4b',
     textSub: '#6b7280',
@@ -51,8 +49,8 @@ const DS = {
     overlayDark: 'rgba(0,0,0,0.45)',
     overlayLight: 'rgba(255,255,255,0.12)',
     overlayActive: 'rgba(255,255,255,0.22)',
+    danger: '#ef4444',
   },
-  // Tipografía
   font: {
     xs: 11,
     sm: 13,
@@ -67,7 +65,6 @@ const DS = {
     bold: '700' as const,
     black: '800' as const,
   },
-  // Espaciado
   space: {
     xs: 4,
     sm: 8,
@@ -76,7 +73,6 @@ const DS = {
     xl: 24,
     xxl: 32,
   },
-  // Bordes
   radius: {
     sm: 8,
     md: 14,
@@ -89,13 +85,36 @@ const DS = {
 const GRAD_HEADER = [DS.colors.grad0, DS.colors.grad2] as const;
 const GRAD_DRAWER = [DS.colors.grad0, DS.colors.grad1, DS.colors.grad2] as const;
 
-// ─── Stack / Tab / Drawer factories ──────────────────────────────────────────
+// ─── Pantalla de carga ────────────────────────────────────────────────────────
+const LoadingScreen = () => (
+  <LinearGradient
+    colors={[DS.colors.grad0, DS.colors.grad1, DS.colors.grad2]}
+    style={styles.loadingContainer}
+  >
+    <View style={styles.loadingContent}>
+      <LinearGradient
+        colors={[DS.colors.accent, DS.colors.grad3]}
+        style={styles.loadingLogo}
+      >
+        <Ionicons name="wallet" size={48} color={DS.colors.white} />
+      </LinearGradient>
+      <Text style={styles.loadingTitle}>DomPresta</Text>
+      <Text style={styles.loadingSubtitle}>Sistema Inteligente de Préstamos</Text>
+      <View style={styles.loadingSpinner}>
+        <ActivityIndicator size="large" color={DS.colors.accent} />
+        <Text style={styles.loadingText}>Verificando sesión...</Text>
+      </View>
+    </View>
+  </LinearGradient>
+);
+
+// ─── Navigators ───────────────────────────────────────────────────────────────
 const Stack = createStackNavigator<RootStackParamList>();
-const Tab   = createBottomTabNavigator<MainTabParamList>();
+const Tab = createBottomTabNavigator<MainTabParamList>();
 const Drawer = createDrawerNavigator<DrawerParamList>();
 
 // ─── screenOptions globales ───────────────────────────────────────────────────
-const screenOptions = {
+const screenOptions: StackNavigationOptions = {
   headerBackground: () => (
     <LinearGradient
       colors={GRAD_HEADER}
@@ -113,49 +132,122 @@ const screenOptions = {
   },
   headerShadowVisible: false,
   headerBackTitleVisible: false,
-  // Botón "back" personalizado con fondo semi-transparente
-  headerBackImage: () => (
-    <View style={styles.backBtn}>
-      <Ionicons name="chevron-back" size={20} color={DS.colors.white} />
-    </View>
-  ),
+  headerLeft: ({ canGoBack, onPress }) =>
+    canGoBack? (
+      <TouchableOpacity style={styles.backBtn} onPress={onPress}>
+        <Ionicons name="chevron-back" size={20} color={DS.colors.white} />
+      </TouchableOpacity>
+    ) : null,
 };
 
-// ─── Drawer items config ──────────────────────────────────────────────────────
-const DRAWER_ITEMS = [
-  { name: 'Inicio',      icon: 'home-outline'          as const },
-  { name: 'Vendedores',  icon: 'briefcase-outline'     as const },
-  { name: 'Solicitudes', icon: 'document-text-outline' as const },
-  { name: 'Arqueo',      icon: 'calculator-outline'    as const },
-  { name: 'Reportes',    icon: 'stats-chart-outline'   as const },
-  { name: 'Ajustes',     icon: 'settings-outline'      as const },
-];
+// ─── Drawer Config ────────────────────────────────────────────────────────────
+const DRAWER_CONFIG = [
+  { name: 'MainTabs', route: 'MainTabs', label: 'Inicio', icon: 'home-outline' },
+  { name: 'Vendors', route: 'Vendors', label: 'Vendedores', icon: 'briefcase-outline' },
+  { name: 'LoanRequests', route: 'LoanRequests', label: 'Solicitudes', icon: 'document-text-outline' },
+  { name: 'CashRegister', route: 'CashRegister', label: 'Arqueo', icon: 'calculator-outline' },
+  { name: 'Reports', route: 'Reports', label: 'Reportes', icon: 'stats-chart-outline' },
+  { name: 'Settings', route: 'Settings', label: 'Ajustes', icon: 'settings-outline' },
+] as const;
 
-// ─── Drawer Header ornamental ─────────────────────────────────────────────────
-const DrawerHeader = () => (
-  <View style={styles.drawerHeader}>
-    {/* Círculo decorativo de fondo */}
-    <View style={styles.drawerHeaderOrb} />
-    <View style={styles.drawerLogoWrap}>
-      <LinearGradient
-        colors={[DS.colors.accent, DS.colors.grad3]}
-        style={styles.drawerLogoGrad}
-      >
-        <Ionicons name="wallet" size={28} color={DS.colors.white} />
-      </LinearGradient>
+interface DrawerHeaderProps {
+  user: User | null;
+}
+
+const DrawerHeader: React.FC<DrawerHeaderProps> = ({ user }) => {
+  const getInitials = (name: string) => {
+    return name
+     .split(' ')
+     .map(n => n[0])
+     .join('')
+     .toUpperCase()
+     .slice(0, 2);
+  };
+
+  return (
+    <View style={styles.drawerHeader}>
+      <View style={styles.drawerHeaderOrb} />
+
+      {/* Info del usuario */}
+      <View style={styles.userInfoContainer}>
+        {user?.avatar? (
+          <Image source={{ uri: user.avatar }} style={styles.userAvatar} />
+        ) : (
+          <LinearGradient
+            colors={[DS.colors.accent, DS.colors.grad3]}
+            style={styles.userAvatarPlaceholder}
+          >
+            <Text style={styles.userInitials}>
+              {user?.name? getInitials(user.name) : 'U'}
+            </Text>
+          </LinearGradient>
+        )}
+
+        <View style={styles.userTextContainer}>
+          <Text style={styles.userName} numberOfLines={1}>
+            {user?.name || 'Usuario'}
+          </Text>
+          <Text style={styles.userEmail} numberOfLines={1}>
+            {user?.email || 'sin-email@dompresta.com'}
+          </Text>
+          {user?.role && (
+            <View style={styles.userRoleBadge}>
+              <Text style={styles.userRoleText}>{user.role}</Text>
+            </View>
+          )}
+        </View>
+      </View>
+
+      <View style={styles.drawerDivider} />
     </View>
-    <Text style={styles.drawerAppName}>DomPresta</Text>
-    <Text style={styles.drawerAppSub}>Panel de Gestión</Text>
-    {/* Separador decorativo */}
-    <View style={styles.drawerDivider} />
-  </View>
-);
+  );
+};
 
-// ─── Custom Drawer Content ────────────────────────────────────────────────────
-const CustomDrawerContent = (props: any) => {
+const CustomDrawerContent = ({ state, navigation }: DrawerContentComponentProps) => {
   const insets = useSafeAreaInsets();
-  const { state, navigation } = props;
   const focusedIndex = state.index;
+  const [user, setUser] = useState<User | null>(null);
+
+  const loadUser = useCallback(async () => {
+    try {
+      const currentUser = await AuthService.getCurrentUser();
+      setUser(currentUser);
+    } catch (error) {
+      console.error('Error loading user:', error);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadUser();
+    }, [loadUser])
+  );
+
+  const handleLogout = async () => {
+    Alert.alert('Cerrar Sesión', '¿Estás seguro que deseas salir?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Salir',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await AuthService.logout();
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Login' }],
+            });
+          } catch (e) {
+            Alert.alert('Error', 'No se pudo cerrar sesión');
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleProfilePress = () => {
+    navigation.navigate('MainTabs', { screen: 'Profile' });
+    navigation.closeDrawer();
+  };
 
   return (
     <LinearGradient
@@ -164,17 +256,18 @@ const CustomDrawerContent = (props: any) => {
       end={{ x: 0.3, y: 1 }}
       style={{ flex: 1 }}
     >
-      {/* Capa de textura sutil */}
       <View style={[styles.drawerNoise, { paddingTop: insets.top }]}>
-        <DrawerHeader />
+        <TouchableOpacity activeOpacity={0.8} onPress={handleProfilePress}>
+          <DrawerHeader user={user} />
+        </TouchableOpacity>
 
         <DrawerContentScrollView
-          {...props}
           scrollEnabled={false}
           contentContainerStyle={styles.drawerScroll}
         >
-          {state.routes.map((route: any, index: number) => {
-            const item = DRAWER_ITEMS[index];
+          {state.routes.map((route, index) => {
+            const config = DRAWER_CONFIG.find(c => c.name === route.name);
+            if (!config) return null;
             const focused = index === focusedIndex;
 
             return (
@@ -190,32 +283,41 @@ const CustomDrawerContent = (props: any) => {
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
                     style={StyleSheet.absoluteFill}
-                    // @ts-ignore
                     borderRadius={DS.radius.md}
                   />
                 )}
                 <View style={[styles.drawerIconWrap, focused && styles.drawerIconWrapActive]}>
                   <Ionicons
-                    name={item?.icon ?? 'ellipse-outline'}
+                    name={config.icon as any}
                     size={19}
-                    color={focused ? DS.colors.white : DS.colors.accent}
+                    color={focused? DS.colors.white : DS.colors.accent}
                   />
                 </View>
                 <Text style={[styles.drawerLabel, focused && styles.drawerLabelActive]}>
-                  {item?.name ?? route.name}
+                  {config.label}
                 </Text>
-                {focused && (
-                  <View style={styles.drawerActiveDot} />
-                )}
+                {focused && <View style={styles.drawerActiveDot} />}
               </TouchableOpacity>
             );
           })}
+
+          <TouchableOpacity
+            activeOpacity={0.75}
+            style={[styles.drawerItem, styles.drawerLogoutItem]}
+            onPress={handleLogout}
+          >
+            <View style={styles.drawerIconWrap}>
+              <Ionicons name="log-out-outline" size={19} color={DS.colors.danger} />
+            </View>
+            <Text style={[styles.drawerLabel, styles.drawerLogoutLabel]}>
+              Cerrar Sesión
+            </Text>
+          </TouchableOpacity>
         </DrawerContentScrollView>
 
-        {/* Footer del drawer */}
         <View style={[styles.drawerFooter, { paddingBottom: insets.bottom + DS.space.md }]}>
           <View style={styles.drawerDivider} />
-          <Text style={styles.drawerFooterText}>v1.0.0  •  DomPresta®</Text>
+          <Text style={styles.drawerFooterText}>v1.0.0 • DomPresta®</Text>
         </View>
       </View>
     </LinearGradient>
@@ -228,10 +330,10 @@ const MainTabs = () => (
     tabBar={(props) => <BottomTabBar {...props} />}
     screenOptions={{ headerShown: false }}
   >
-    <Tab.Screen name="Home"     component={HomeScreen}    />
-    <Tab.Screen name="Loans"    component={LoansScreen}   />
-    <Tab.Screen name="Clients"  component={ClientsScreen} />
-    <Tab.Screen name="Profile"  component={ProfileScreen} />
+    <Tab.Screen name="Home" component={HomeScreen} />
+    <Tab.Screen name="Loans" component={LoansScreen} />
+    <Tab.Screen name="Clients" component={ClientsScreen} />
+    <Tab.Screen name="Profile" component={ProfileScreen} />
   </Tab.Navigator>
 );
 
@@ -240,92 +342,34 @@ const MainDrawer = () => (
   <Drawer.Navigator
     drawerContent={(props) => <CustomDrawerContent {...props} />}
     screenOptions={{
-      ...screenOptions,
+     ...screenOptions,
       drawerStyle: {
         backgroundColor: 'transparent',
-        width: 285,
+        width: 295,
       },
       drawerType: 'front',
       overlayColor: DS.colors.overlayDark,
       swipeEdgeWidth: 40,
     }}
   >
-    <Drawer.Screen
-      name="MainTabs"
-      component={MainTabs}
-      options={{
-        title: 'DomPresta',
-        headerShown: false,
-        drawerLabel: 'Inicio',
-        drawerIcon: ({ color, size }) => (
-          <Ionicons name="home-outline" size={size} color={color} />
-        ),
-      }}
-    />
-    <Drawer.Screen
-      name="Vendors"
-      component={ScreenWithTab(VendorsScreen)}
-      options={{
-        title: 'Vendedores',
-        drawerLabel: 'Vendedores',
-        drawerIcon: ({ color, size }) => (
-          <Ionicons name="briefcase-outline" size={size} color={color} />
-        ),
-      }}
-    />
-    <Drawer.Screen
-      name="LoanRequests"
-      component={ScreenWithTab(LoanRequestsScreen)}
-      options={{
-        title: 'Solicitudes',
-        drawerLabel: 'Solicitudes',
-        drawerIcon: ({ color, size }) => (
-          <Ionicons name="document-text-outline" size={size} color={color} />
-        ),
-      }}
-    />
-    <Drawer.Screen
-      name="CashRegister"
-      component={ScreenWithTab(CashRegisterScreen)}
-      options={{
-        title: 'Arqueo de Caja',
-        drawerLabel: 'Arqueo',
-        drawerIcon: ({ color, size }) => (
-          <Ionicons name="calculator-outline" size={size} color={color} />
-        ),
-      }}
-    />
-    <Drawer.Screen
-      name="Reports"
-      component={ScreenWithTab(ReportsScreen)}
-      options={{
-        title: 'Reportes',
-        drawerLabel: 'Reportes',
-        drawerIcon: ({ color, size }) => (
-          <Ionicons name="stats-chart-outline" size={size} color={color} />
-        ),
-      }}
-    />
-    <Drawer.Screen
-      name="Settings"
-      component={ScreenWithTab(SettingsScreen)}
-      options={{
-        title: 'Configuraciones',
-        drawerLabel: 'Ajustes',
-        drawerIcon: ({ color, size }) => (
-          <Ionicons name="settings-outline" size={size} color={color} />
-        ),
-      }}
-    />
+    <Drawer.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />
+    <Drawer.Screen name="Vendors" component={ScreenWithTab(VendorsScreen)} options={{ title: 'Vendedores' }} />
+    <Drawer.Screen name="LoanRequests" component={ScreenWithTab(LoanRequestsScreen)} options={{ title: 'Solicitudes' }} />
+    <Drawer.Screen name="CashRegister" component={ScreenWithTab(CashRegisterScreen)} options={{ title: 'Arqueo de Caja' }} />
+    <Drawer.Screen name="Reports" component={ScreenWithTab(ReportsScreen)} options={{ title: 'Reportes' }} />
+    <Drawer.Screen name="Settings" component={ScreenWithTab(SettingsScreen)} options={{ title: 'Configuraciones' }} />
   </Drawer.Navigator>
 );
 
 // ─── AppNavigator ─────────────────────────────────────────────────────────────
 const AppNavigator = () => {
+  const [isReady, setIsReady] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
   const navTheme = {
-    ...DefaultTheme,
+   ...DefaultTheme,
     colors: {
-      ...DefaultTheme.colors,
+     ...DefaultTheme.colors,
       background: DS.colors.surface,
       primary: DS.colors.grad2,
       card: DS.colors.grad1,
@@ -334,88 +378,71 @@ const AppNavigator = () => {
     },
   };
 
+  useEffect(() => {
+    checkAuthState();
+  }, []);
+
+  const checkAuthState = async () => {
+    try {
+      await AuthService.initialize();
+      const auth = await AuthService.isAuthenticated();
+      setIsAuthenticated(auth);
+    } catch (error) {
+      console.error('Error checking auth state:', error);
+      setIsAuthenticated(false);
+    } finally {
+      setIsReady(true);
+    }
+  };
+
+  if (!isReady) return <LoadingScreen />;
+
   return (
     <>
-      <StatusBar
-        barStyle="light-content"
-        backgroundColor="transparent"
-        translucent
-      />
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       <NavigationContainer theme={navTheme}>
         <Stack.Navigator
-          initialRouteName="Login"
+          initialRouteName={isAuthenticated? 'MainDrawer' : 'Login'}
           screenOptions={screenOptions}
         >
-          {/* Auth */}
-          <Stack.Screen
-            name="Login"
-            component={LoginScreen}
-            options={{ headerShown: false }}
-          />
+          <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="MainDrawer" component={MainDrawer} options={{ headerShown: false }} />
 
-          {/* Shell principal */}
-          <Stack.Screen
-            name="MainDrawer"
-            component={MainDrawer}
-            options={{ headerShown: false }}
-          />
-
-          {/* Stack de detalle / formularios */}
-          <Stack.Screen
-            name="LoanDetails"
-            component={LoanDetailsScreen}
-            options={{ title: 'Detalle del Préstamo' }}
-          />
+          {/* Formularios y detalles */}
+          <Stack.Screen name="LoanDetails" component={LoanDetailsScreen} options={{ title: 'Detalle del Préstamo' }} />
           <Stack.Screen
             name="LoanForm"
             component={LoanFormScreen}
             options={({ route }) => ({
-              title: route.params?.loanId ? 'Editar Préstamo' : 'Nuevo Préstamo',
+              title: route.params?.loanId? 'Editar Préstamo' : 'Nuevo Préstamo',
             })}
           />
-          <Stack.Screen
-            name="PaymentForm"
-            component={PaymentFormScreen}
-            options={{ title: 'Registrar Pago' }}
-          />
-          <Stack.Screen
-            name="Reports"
-            component={ReportsScreen}
-            options={{ title: 'Reportes' }}
-          />
+          <Stack.Screen name="PaymentForm" component={PaymentFormScreen} options={{ title: 'Registrar Pago' }} />
           <Stack.Screen
             name="ClientForm"
             component={ClientFormScreen}
             options={({ route }) => ({
-              title: route.params?.clientId ? 'Editar Cliente' : 'Nuevo Cliente',
+              title: route.params?.clientId? 'Editar Cliente' : 'Nuevo Cliente',
             })}
           />
           <Stack.Screen
             name="ClientDetails"
             component={ClientDetailsScreen}
-            options={({ route }) => ({
-              title: 'Detalle del Cliente',
-              headerShown: false, // La pantalla ya tiene su propio header personalizado
-            })}
-        />
+            options={{ headerShown: false }}
+          />
           <Stack.Screen
             name="VendorForm"
             component={VendorFormScreen}
             options={({ route }) => ({
-              title: route.params?.vendorId ? 'Editar Vendedor' : 'Nuevo Vendedor',
+              title: route.params?.vendorId? 'Editar Vendedor' : 'Nuevo Vendedor',
             })}
           />
           <Stack.Screen
             name="LoanRequestForm"
             component={LoanRequestFormScreen}
             options={({ route }) => ({
-              title: route.params?.requestId ? 'Editar Solicitud' : 'Nueva Solicitud',
+              title: route.params?.requestId? 'Editar Solicitud' : 'Nueva Solicitud',
             })}
-          />
-          <Stack.Screen
-            name="CashRegister"
-            component={CashRegisterScreen}
-            options={{ title: 'Arqueo de Caja' }}
           />
         </Stack.Navigator>
       </NavigationContainer>
@@ -425,9 +452,8 @@ const AppNavigator = () => {
 
 export default AppNavigator;
 
-// ─── StyleSheet centralizado ──────────────────────────────────────────────────
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  // Header back button
   backBtn: {
     marginLeft: DS.space.sm,
     width: 34,
@@ -437,17 +463,49 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-  // ── Drawer ──────────────────────────────────────────────────────────────────
-  drawerNoise: {
+  loadingContainer: { flex: 1 },
+  loadingContent: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: DS.space.xl,
   },
-
+  loadingLogo: {
+    width: 100,
+    height: 100,
+    borderRadius: DS.radius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: DS.space.xl,
+    shadowColor: DS.colors.accent,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  loadingTitle: {
+    fontSize: 32,
+    fontWeight: DS.weight.black,
+    color: DS.colors.white,
+    letterSpacing: -1,
+    marginBottom: DS.space.sm,
+  },
+  loadingSubtitle: {
+    fontSize: DS.font.md,
+    color: 'rgba(255,255,255,0.6)',
+    marginBottom: DS.space.xxl,
+  },
+  loadingSpinner: { alignItems: 'center', gap: DS.space.md },
+  loadingText: {
+    fontSize: DS.font.sm,
+    color: 'rgba(255,255,255,0.5)',
+    marginTop: DS.space.md,
+  },
+  drawerNoise: { flex: 1 },
   drawerHeader: {
     paddingHorizontal: DS.space.xl,
     paddingTop: DS.space.xl,
     paddingBottom: DS.space.lg,
-    alignItems: 'flex-start',
     position: 'relative',
     overflow: 'hidden',
   },
@@ -460,33 +518,61 @@ const styles = StyleSheet.create({
     top: -40,
     right: -40,
   },
-  drawerLogoWrap: {
-    marginBottom: DS.space.md,
-    shadowColor: DS.colors.accent,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    elevation: 10,
+  userInfoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: DS.space.md,
   },
-  drawerLogoGrad: {
-    width: 52,
-    height: 52,
+  userAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: DS.radius.md,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  userAvatarPlaceholder: {
+    width: 56,
+    height: 56,
     borderRadius: DS.radius.md,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.3)',
   },
-  drawerAppName: {
-    fontSize: DS.font.xl,
+  userInitials: {
+    fontSize: DS.font.lg,
     fontWeight: DS.weight.black,
     color: DS.colors.white,
-    letterSpacing: -0.5,
-    marginBottom: DS.space.xs,
   },
-  drawerAppSub: {
-    fontSize: DS.font.sm,
+  userTextContainer: {
+    flex: 1,
+    gap: 2,
+  },
+  userName: {
+    fontSize: DS.font.lg,
+    fontWeight: DS.weight.bold,
+    color: DS.colors.white,
+    letterSpacing: -0.3,
+  },
+  userEmail: {
+    fontSize: DS.font.xs,
     fontWeight: DS.weight.medium,
-    color: 'rgba(255,255,255,0.55)',
-    letterSpacing: 0.3,
+    color: 'rgba(255,255,255,0.6)',
+  },
+  userRoleBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(167,139,250,0.25)',
+    paddingHorizontal: DS.space.sm,
+    paddingVertical: 2,
+    borderRadius: DS.radius.sm,
+    marginTop: 4,
+  },
+  userRoleText: {
+    fontSize: 10,
+    fontWeight: DS.weight.bold,
+    color: DS.colors.accentSoft,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   drawerDivider: {
     width: '100%',
@@ -494,14 +580,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.12)',
     marginTop: DS.space.lg,
   },
-
   drawerScroll: {
     paddingHorizontal: DS.space.md,
     paddingTop: DS.space.md,
     paddingBottom: DS.space.sm,
     gap: DS.space.xs,
   },
-
   drawerItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -512,10 +596,9 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'hidden',
   },
-  drawerItemActive: {
-    // El gradiente se renderiza con StyleSheet.absoluteFill dentro
-  },
-
+  drawerItemActive: {},
+  drawerLogoutItem: { marginTop: DS.space.md },
+  drawerLogoutLabel: { color: DS.colors.danger },
   drawerIconWrap: {
     width: 36,
     height: 36,
@@ -525,10 +608,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: DS.space.md,
   },
-  drawerIconWrapActive: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-  },
-
+  drawerIconWrapActive: { backgroundColor: 'rgba(255,255,255,0.2)' },
   drawerLabel: {
     flex: 1,
     fontSize: DS.font.md,
@@ -536,11 +616,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.7)',
     letterSpacing: 0.1,
   },
-  drawerLabelActive: {
-    color: DS.colors.white,
-    fontWeight: DS.weight.bold,
-  },
-
+  drawerLabelActive: { color: DS.colors.white, fontWeight: DS.weight.bold },
   drawerActiveDot: {
     width: 6,
     height: 6,
@@ -548,11 +624,7 @@ const styles = StyleSheet.create({
     backgroundColor: DS.colors.accent,
     marginLeft: DS.space.sm,
   },
-
-  drawerFooter: {
-    paddingHorizontal: DS.space.xl,
-    paddingTop: DS.space.md,
-  },
+  drawerFooter: { paddingHorizontal: DS.space.xl, paddingTop: DS.space.md },
   drawerFooterText: {
     fontSize: DS.font.xs,
     color: 'rgba(255,255,255,0.3)',

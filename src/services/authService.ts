@@ -1,12 +1,31 @@
+// authService.ts
 import { DatabaseService } from './databaseService';
 import { User } from '../types';
 
 export class AuthService {
+  private static initializationPromise: Promise<void> | null = null;
+
   static async initialize(): Promise<void> {
-    await DatabaseService.initDatabase();
+    if (!this.initializationPromise) {
+      this.initializationPromise = this._initialize();
+    }
+    return this.initializationPromise;
+  }
+
+  private static async _initialize(): Promise<void> {
+    DatabaseService.initDatabase();
+
+    // Verificar si ya hay una sesión activa
+    const existingUser = await DatabaseService.getCurrentUser();
+    
+    // Si hay usuario logueado, no es necesario crear admin
+    if (existingUser) {
+      console.log('Sesión existente encontrada:', existingUser.email);
+      return;
+    }
 
     // Crear usuario administrador por defecto si no existe
-    const adminExists = await DatabaseService.getUserByEmail('admin@dompresta.com');
+    const adminExists = DatabaseService.getUserByEmail('admin@dompresta.com');
     if (!adminExists) {
       await DatabaseService.createUser({
         name: 'Administrador',
@@ -17,10 +36,17 @@ export class AuthService {
     }
   }
 
-  static async login(email: string, password: string): Promise<User | null> {
+  static async login(email: string, password: string, role?: string): Promise<User | null> {
     try {
-      const user = await DatabaseService.getUserByEmail(email);
-      if (user && user.password === password) { // En producción verificar hash
+      const user = DatabaseService.getUserByEmail(email);
+      if (user && user.password === password) {
+        // Verificar rol si se especificó
+        if (role && user.role !== role && user.role !== 'admin') {
+          console.log('Rol incorrecto para este usuario');
+          return null;
+        }
+        
+        // Guardar sesión
         await DatabaseService.setCurrentUser(user.id);
         return user;
       }
@@ -34,7 +60,7 @@ export class AuthService {
   static async register(name: string, email: string, password: string): Promise<User | null> {
     try {
       // Verificar si el usuario ya existe
-      const existingUser = await DatabaseService.getUserByEmail(email);
+      const existingUser = DatabaseService.getUserByEmail(email);
       if (existingUser) {
         return null; // Usuario ya existe
       }
@@ -74,7 +100,7 @@ export class AuthService {
         return false;
       }
 
-      // En una implementación real, actualizar la contraseña en la base de datos
+      // Aquí actualizarías la contraseña en la base de datos
       // Por ahora, solo simulamos el cambio
       console.log('Password changed for user:', user.email);
       return true;
