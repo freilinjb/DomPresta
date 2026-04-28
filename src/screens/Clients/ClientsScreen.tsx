@@ -601,8 +601,9 @@ export const ClientsScreen: React.FC<ClientsScreenProps> = ({ navigation }) => {
     };
 
       const handleAddClient = () => { 
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); 
-    (navigation as any).navigate('ClientForm');
+        console.log('click add cliente');
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); 
+      (navigation as any).navigate('ClientForm');
   };
   
   const handleClientPress = (client: Client) => { 

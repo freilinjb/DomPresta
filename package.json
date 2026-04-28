@@ -34,7 +34,7 @@
     "expo-notifications": "~0.32.16",
     "expo-print": "~15.0.8",
     "expo-sharing": "~14.0.8",
-    "expo-sqlite": "~16.0.10",
+    "expo-sqlite": "^55.0.15",
     "expo-status-bar": "~3.0.9",
     "expo-web-browser": "~15.0.10",
     "nativewind": "^4.2.3",

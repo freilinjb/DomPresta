@@ -21,6 +21,7 @@ import {
 import { Picker } from '@react-native-picker/picker';
 import { LineChart } from 'react-native-chart-kit';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -580,13 +581,15 @@ const LoanTypeCard: React.FC<{
 // ============================================================
 
 export default function LoanCreateScreen() {
+    const navigation = useNavigation();
+
   const { createLoan } = useLoans();
   const { loans, loading, loadLoans, getStats } = useLoans();
 
   const { clients } = useClients();
 
   const [activeTab, setActiveTab] = useState<'loan' | 'guarantor' | 'warranty'>('loan');
-  const [loading, setLoading] = useState(false);
+  // const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [calculationMode, setCalculationMode] = useState<'standard' | 'fixedPayment' | 'profitPercentage' | 'san'>('san');
   const [showLoanTypeSelector, setShowLoanTypeSelector] = useState(false);
@@ -908,7 +911,7 @@ export default function LoanCreateScreen() {
       return;
     }
 
-    setLoading(true);
+    // setLoading(true);
 
     try {
       // Preparar datos para SQLite
@@ -956,13 +959,13 @@ export default function LoanCreateScreen() {
 
       // Guardar en SQLite
       const savedLoan = await createLoan(loanData);
-
-      setLoading(false);
+      console.log("SAVELOAN : ", savedLoan);
+      // setLoading(false);
       setShowSuccessModal(true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     } catch (error) {
-      setLoading(false);
+      // setLoading(false);
       Alert.alert('Error', 'No se pudo guardar el préstamo en SQLite');
     }
   };
@@ -1565,7 +1568,25 @@ export default function LoanCreateScreen() {
               </View>
 
               <View style={styles.successModalButtons}>
-                <GradientButton onPress={() => setShowSuccessModal(false)} variant={selectedLoanType?.category === 'san' ? 'success' : 'primary'} icon="eye">
+                <GradientButton onPress={() => {
+                  setShowSuccessModal(false);
+                   const parent = navigation.getParent();
+                    if (parent) {
+                      parent.navigate('MainDrawer', {
+                        screen: 'MainTabs',
+                        params: {
+                          screen: 'Loans'
+                        }
+                      });
+                    } else {
+                      navigation.goBack();
+                    }
+
+                  //  (navigation as any).navigate('Loans', {
+                  //   refresh: true // por si quieres forzar reload
+                  // });
+
+                }} variant={selectedLoanType?.category === 'san' ? 'success' : 'primary'} icon="eye">
                   Ver Préstamo
                 </GradientButton>
                 <View style={styles.buttonSpacer} />

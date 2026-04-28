@@ -545,6 +545,10 @@ export const ClientFormScreen: React.FC<ClientFormScreenProps> = ({ route, navig
         savedClient = await createClient(newClientData);
 
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        
+        //LOAD CLIENTS
+        loadClient();
+
         Alert.alert(
           '✅ Cliente Creado',
           `El cliente ${savedClient.firstName} ${savedClient.lastName} se ha registrado correctamente en SQLite.`,
