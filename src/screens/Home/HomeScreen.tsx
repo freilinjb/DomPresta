@@ -34,7 +34,7 @@ import Svg, {
   Path,
 } from 'react-native-svg';
 import { Loan } from '../../types';
-import { LoanService } from '../../services/loanService';
+import { DatabaseService } from '../../services/databaseService';
 import { MainTabParamList } from '../../navigation/types';
 
 const { width } = Dimensions.get('window');
@@ -467,20 +467,44 @@ const alS = StyleSheet.create({
 // ─── HomeScreen ───────────────────────────────────────────────────
 export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState<'Resumen' | 'Préstamos' | 'Clientes' | 'Reportes'>('Resumen');
-  const [loans, setLoans] = useState<Loan[]>(MOCK_LOANS);
+  const [loans, setLoans] = useState<Loan[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [currencySymbol, setCurrencySymbol] = useState('RD$');
   const scrollY = useRef(new RNAnimated.Value(0)).current;
 
   useEffect(() => {
+    const savedCurrency = DatabaseService.getSetting('currency');
+    if (savedCurrency) setCurrencySymbol(savedCurrency);
     navigation.setOptions({ headerShown: false });
     fetchLoans();
   }, []);
 
+  const normalizeLoan = (loan: any): Loan => {
+    const pendingPayments = (loan.payments ?? [])
+      .filter((p: any) => p.status !== 'paid')
+      .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    const nextPayment = pendingPayments[0];
+    const nextPaymentDate = nextPayment
+      ? (nextPayment.date instanceof Date ? nextPayment.date.toISOString().split('T')[0] : nextPayment.date)
+      : undefined;
+
+    return {
+      ...loan,
+      nextPaymentDate,
+      createdAt: loan.createdAt instanceof Date ? loan.createdAt.toISOString() : loan.createdAt,
+    };
+  };
+
   const fetchLoans = async () => {
     try {
-      const data = await LoanService.getLoans();
-      if (data?.length) setLoans(data);
-    } catch { /* usa mock */ } finally { setRefreshing(false); }
+      const data = await DatabaseService.getLoans();
+      if (data?.length) setLoans(data.map(normalizeLoan));
+    } catch (error) {
+      console.error('Error cargando préstamos:', error);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const onRefresh = useCallback(() => {
@@ -489,16 +513,23 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     fetchLoans();
   }, []);
 
-  const fmt      = (v: number) => `RD$${v.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmt      = (v: number) => `${currencySymbol}${v.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const fmtShort = (v: number) => {
-    if (v >= 1_000_000) return `RD$${(v / 1_000_000).toFixed(1)}M`;
-    if (v >= 1_000)     return `RD$${(v / 1_000).toFixed(1)}K`;
-    return `RD$${v.toFixed(0)}`;
+    if (v >= 1_000_000) return `${currencySymbol}${(v / 1_000_000).toFixed(1)}M`;
+    if (v >= 1_000)     return `${currencySymbol}${(v / 1_000).toFixed(1)}K`;
+    return `${currencySymbol}${v.toFixed(0)}`;
   };
 
   const go = (screen: keyof MainTabParamList) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     navigation.navigate(screen);
+  };
+
+  const openDrawer = () => {
+    const parent = navigation.getParent?.();
+    if (parent && typeof (parent as any).openDrawer === 'function') {
+      (parent as any).openDrawer();
+    }
   };
 
   const navOpacity = scrollY.interpolate({ inputRange: [0, 60], outputRange: [0, 1], extrapolate: 'clamp' });
@@ -862,7 +893,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       <RNAnimated.View style={[s.floatNav, { opacity: navOpacity }]} pointerEvents="box-none">
         <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFillObject} />
         <View style={s.floatRow}>
-          <TouchableOpacity style={s.navBtn} onPress={() => navigation.getParent?.()?.openDrawer()}>
+          <TouchableOpacity style={s.navBtn} onPress={openDrawer}>
             <Ionicons name="menu-outline" size={20} color={C.text} />
           </TouchableOpacity>
           <Text style={s.floatTitle}>Dashboard</Text>
@@ -894,7 +925,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
           {/* Top row */}
           <View style={s.headerTop}>
-            <TouchableOpacity style={s.navBtnWhite} onPress={() => navigation.getParent?.()?.openDrawer()}>
+            <TouchableOpacity style={s.navBtnWhite} onPress={openDrawer}>
               <Ionicons name="menu-outline" size={20} color="white" />
             </TouchableOpacity>
             <View style={{ alignItems: 'center' }}>

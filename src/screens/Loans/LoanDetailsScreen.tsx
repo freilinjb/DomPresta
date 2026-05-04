@@ -32,6 +32,7 @@ import * as FileSystem from 'expo-file-system';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Text as SvgText } from 'react-native-svg';
 import { Loan } from '../../types';
+import { DatabaseService } from '../../services/databaseService';
 import { RootStackParamList } from '../../navigation/types';
 
 const { width } = Dimensions.get('window');
@@ -79,7 +80,7 @@ interface LoanDetailsScreenProps {
 }
 
 // ─── Tipos Mejorados ──────────────────────────────────────────────────────────
-interface Payment {
+interface LoanDetailPayment {
   id: string;
   date: string;
   amount: number;
@@ -93,7 +94,15 @@ interface Payment {
   period: number;
 }
 
-interface ExtendedLoan extends Loan {
+interface ExtendedLoan {
+  id: string;
+  borrowerName: string;
+  amount: number;
+  status: 'pending' | 'active' | 'paid' | 'overdue' | 'cancelled' | 'review';
+  startDate: string;
+  endDate: string;
+  interestRate: number;
+  term: number;
   clientId?: string;
   clientEmail?: string;
   clientPhone?: string;
@@ -115,7 +124,7 @@ interface ExtendedLoan extends Loan {
   nextPaymentAmount?: number;
   daysLate?: number;
   lateFees: number;
-  payments: Payment[];
+  payments: LoanDetailPayment[];
   notes?: string;
   createdBy?: string;
   createdAt: string;
@@ -123,8 +132,77 @@ interface ExtendedLoan extends Loan {
 }
 
 // ─── Helper Functions ─────────────────────────────────────────────────────────
-const formatCurrency = (v: number) => `RD$${v.toLocaleString('es-DO', { minimumFractionDigits: 2 })}`;
-const formatDate = (d: string | Date) => new Date(d).toLocaleDateString('es-DO', { day: '2-digit', month: 'short', year: 'numeric' });
+const getCurrencySymbol = () => DatabaseService.getSetting('currency') || 'RD$';
+const formatCurrency = (v: number) => `${getCurrencySymbol()}${v.toLocaleString('es-DO', { minimumFractionDigits: 2 })}`;
+const formatDate = (d?: string | Date) => d ? new Date(d).toLocaleDateString('es-DO', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A';
+
+const buildExtendedLoanFromDatabase = (loanData: any): ExtendedLoan => {
+  const payments: LoanDetailPayment[] = (loanData.payments ?? []).map((payment: any, index: number) => ({
+    id: payment.id,
+    date: payment.date instanceof Date ? payment.date.toISOString().split('T')[0] : payment.date,
+    amount: payment.amount,
+    principal: payment.amount,
+    interest: 0,
+    lateFee: 0,
+    status: payment.status === 'paid' ? 'paid' : payment.status === 'overdue' ? 'late' : payment.status === 'pending' ? 'pending' : 'partial',
+    paymentMethod: payment.paymentMethod || 'Efectivo',
+    notes: payment.notes || '',
+    period: index + 1,
+  }));
+
+  const totalPaid = payments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0);
+  const remainingBalance = Math.max((loanData.remainingBalance ?? loanData.amount - totalPaid) as number, 0);
+  const pendingPayments = payments
+    .filter(p => p.status !== 'paid')
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  const nextPayment = pendingPayments[0];
+  const nextPaymentDate = nextPayment?.date;
+  const nextPaymentAmount = nextPayment?.amount ?? 0;
+  const daysLate = Math.max(
+    0,
+    ...pendingPayments
+      .filter(p => p.status === 'late')
+      .map(p => Math.max(0, Math.ceil((Date.now() - new Date(p.date).getTime()) / (1000 * 60 * 60 * 24))))
+  );
+
+  return {
+    id: loanData.id,
+    borrowerName: loanData.borrowerName || 'Cliente',
+    amount: loanData.amount ?? 0,
+    status: loanData.status || 'pending',
+    createdAt: loanData.createdAt instanceof Date ? loanData.createdAt.toISOString() : loanData.createdAt || new Date().toISOString(),
+    startDate: loanData.startDate instanceof Date ? loanData.startDate.toISOString() : loanData.startDate || new Date().toISOString(),
+    endDate: loanData.endDate instanceof Date ? loanData.endDate.toISOString() : loanData.endDate || new Date().toISOString(),
+    interestRate: loanData.interestRate ?? 0,
+    term: loanData.term ?? 0,
+    clientId: loanData.clientId,
+    clientEmail: loanData.clientEmail,
+    clientPhone: loanData.clientPhone,
+    clientAddress: loanData.clientAddress,
+    clientDocument: loanData.clientDocument,
+    loanType: loanData.loanType || 'formal',
+    loanTypeName: loanData.loanTypeName || 'Personal',
+    calculationMethod: loanData.calculationMethod || 'standard',
+    paymentFrequency: loanData.paymentFrequency || 'monthly',
+    guarantorName: loanData.guarantorName,
+    guarantorPhone: loanData.guarantorPhone,
+    guarantorDocument: loanData.guarantorDocument,
+    collateralType: loanData.collateralType,
+    collateralValue: loanData.collateralValue,
+    collateralDescription: loanData.collateralDescription,
+    totalPaid,
+    remainingBalance,
+    nextPaymentDate,
+    nextPaymentAmount,
+    daysLate,
+    lateFees: loanData.lateFees ?? 0,
+    payments,
+    notes: loanData.notes,
+    createdBy: loanData.createdBy,
+    updatedAt: loanData.updatedAt || loanData.createdAt,
+  };
+};
 
 // ─── PDF Generators (NUEVO) ─────────────────────────────────────────────────
 const generateLoanPDFHtml = (loan: ExtendedLoan) => {
@@ -207,7 +285,7 @@ const generateLoanPDFHtml = (loan: ExtendedLoan) => {
 </html>`;
 };
 
-const generatePaymentReceiptHtml = (loan: ExtendedLoan, payment: Payment) => {
+const generatePaymentReceiptHtml = (loan: ExtendedLoan, payment: LoanDetailPayment) => {
   const getStatusLabel = (status: string) => {
     switch (status) {
       case 'paid': return 'PAGADO';
@@ -318,8 +396,8 @@ const infoS = StyleSheet.create({
   valueHighlight: { fontSize: 16, fontWeight: '800', color: C.brandVibrant },
 });
 
-const PaymentStatusBadge: React.FC<{ status: Payment['status'] }> = ({ status }) => {
-  const config: Record<Payment['status'], { label: string; bg: string; color: string }> = {
+const PaymentStatusBadge: React.FC<{ status: LoanDetailPayment['status'] }> = ({ status }) => {
+  const config: Record<LoanDetailPayment['status'], { label: string; bg: string; color: string }> = {
     paid: { label: 'Pagado', bg: C.successBg, color: C.successMid },
     pending: { label: 'Pendiente', bg: C.warningBg, color: C.warningMid },
     late: { label: 'Atrasado', bg: C.dangerBg, color: C.dangerMid },
@@ -338,7 +416,7 @@ const payBadgeS = StyleSheet.create({
   text: { fontSize: 9, fontWeight: '700' },
 });
 
-const PaymentItem: React.FC<{ payment: Payment; index: number; isSan?: boolean; onViewReceipt: (payment: Payment) => void }> = ({ payment, index, isSan, onViewReceipt }) => {
+const PaymentItem: React.FC<{ payment: LoanDetailPayment; index: number; isSan?: boolean; onViewReceipt: (payment: LoanDetailPayment) => void }> = ({ payment, index, isSan, onViewReceipt }) => {
   return (
     <Animated.View entering={FadeInRight.delay(index * 50).springify()}>
       <View style={payItemS.container}>
@@ -472,45 +550,7 @@ const actionS = StyleSheet.create({
 });
 
 // ─── Datos Mock Mejorados (Se agregó paymentMethod a los pagos pagados) ──────────
-const MOCK_LOAN_DETAILS: Record<string, ExtendedLoan> = {
-  '1': {
-    id: '1',
-    borrowerName: 'Juan Rodríguez Méndez',
-    amount: 15750.50,
-    status: 'active',
-    createdAt: '2026-01-15',
-    startDate: new Date('2026-01-15'),
-    endDate: new Date('2026-07-15'),
-    interestRate: 12,
-    term: 6,
-    clientId: 'C001',
-    clientEmail: 'juan.rodriguez@email.com',
-    clientPhone: '809-555-1234',
-    clientAddress: 'Calle Principal #123, Santo Domingo',
-    clientDocument: '402-1234567-8',
-    loanType: 'formal',
-    loanTypeName: 'Personal',
-    calculationMethod: 'standard',
-    paymentFrequency: 'monthly',
-    guarantorName: 'María Pérez',
-    guarantorPhone: '809-555-5678',
-    totalPaid: 5250.00,
-    remainingBalance: 10500.50,
-    nextPaymentDate: '2026-04-20',
-    nextPaymentAmount: 2625.00,
-    daysLate: 0,
-    lateFees: 0,
-    payments: [
-      { id: 'p1', date: '2026-01-20', amount: 2625.00, principal: 2400.00, interest: 225.00, status: 'paid', paymentMethod: 'Efectivo', period: 1 },
-      { id: 'p2', date: '2026-02-20', amount: 2625.00, principal: 2425.00, interest: 200.00, status: 'paid', paymentMethod: 'Transferencia', period: 2 },
-      { id: 'p3', date: '2026-03-20', amount: 2625.00, principal: 2450.00, interest: 175.00, status: 'pending', paymentMethod: '', period: 3 },
-      { id: 'p4', date: '2026-04-20', amount: 2625.00, principal: 2475.00, interest: 150.00, status: 'pending', paymentMethod: '', period: 4 },
-    ],
-    notes: 'Cliente VIP, buen historial de pagos.',
-    createdBy: 'Carlos Méndez',
-    updatedAt: '2026-03-15',
-  },
-};
+// ─── Datos del préstamo consultados desde la tabla de la base de datos ─────────────────────────────────
 
 // ─── Componente Principal (VERSIÓN MEJORADA) ─────────────────────────────────
 export const LoanDetailsScreen: React.FC<LoanDetailsScreenProps> = ({ route, navigation }) => {
@@ -522,7 +562,7 @@ export const LoanDetailsScreen: React.FC<LoanDetailsScreenProps> = ({ route, nav
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentNotes, setPaymentNotes] = useState('');
   // NUEVO: Estado para el modal de recibo/desglose de pago
-  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
+  const [selectedPayment, setSelectedPayment] = useState<LoanDetailPayment | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const scrollY = useRef(new RNAnimated.Value(0)).current;
 
@@ -533,10 +573,17 @@ export const LoanDetailsScreen: React.FC<LoanDetailsScreenProps> = ({ route, nav
 
   const loadLoanDetails = async () => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 800));
-      const loanData = MOCK_LOAN_DETAILS['1'];
-      setLoan(loanData || null);
+      const loanData = await DatabaseService.getLoanById(loanId);
+      if (!loanData) {
+        setLoan(null);
+        Alert.alert('Error', 'No se encontraron los detalles del préstamo.');
+        return;
+      }
+
+      const extendedLoan = buildExtendedLoanFromDatabase(loanData);
+      setLoan(extendedLoan);
     } catch (error) {
+      console.error('Error cargando préstamo:', error);
       Alert.alert('Error', 'No se pudieron cargar los detalles del préstamo');
     } finally {
       setLoading(false);
@@ -579,7 +626,7 @@ export const LoanDetailsScreen: React.FC<LoanDetailsScreenProps> = ({ route, nav
   };
 
   // NUEVO: Función para ver el desglose del recibo de pago
-  const handleViewReceipt = (payment: Payment) => {
+  const handleViewReceipt = (payment: LoanDetailPayment) => {
     setSelectedPayment(payment);
     setShowReceiptModal(true);
   };
@@ -782,7 +829,7 @@ export const LoanDetailsScreen: React.FC<LoanDetailsScreenProps> = ({ route, nav
             <View style={s.statsRow}>
               <StatCard label="Tasa" value={`${loan.interestRate}%`} icon="trending-up" color={C.brandVibrant} bg={C.brandFaint} />
               <View style={{ width: 8 }} />
-              <StatCard label={isSan ? 'Plazo (días)' : 'Plazo'} value={loan.term.toString()} icon="calendar" color={C.infoMid} bg={C.infoBg} />
+              <StatCard label={isSan ? 'Plazo (días)' : 'Plazo'} value={(loan.term ?? 0).toString()} icon="calendar" color={C.infoMid} bg={C.infoBg} />
               <View style={{ width: 8 }} />
               <StatCard label="Frecuencia" value={loan.paymentFrequency === 'daily' ? 'Diario' : loan.paymentFrequency === 'weekly' ? 'Semanal' : 'Mensual'} icon="repeat" color={C.warningMid} bg={C.warningBg} />
             </View>

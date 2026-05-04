@@ -363,18 +363,6 @@ export const ClientFormScreen: React.FC<ClientFormScreenProps> = ({ route, navig
 
   const [errors, setErrors] = useState<Partial<Record<keyof ClientFormData, string>>>({});
 
-  const MOCK_CLIENT_DATA: ClientFormData = {
-    firstName: 'Juan', lastName: 'Pérez González', email: 'juan.perez@email.com',
-    phone: '809-555-1234', secondaryPhone: '829-555-5678', documentType: 'cedula',
-    documentNumber: '402-1234567-8', monthlyIncome: '45000', occupation: 'Ingeniero de Software',
-    employer: 'Tech Solutions SRL', yearsEmployed: '5', address: 'Calle Principal #123',
-    city: 'Santo Domingo', province: 'Distrito Nacional', postalCode: '10101',
-    reference1Name: 'María Rodríguez', reference1Phone: '809-555-8765', reference1Relationship: 'Hermana',
-    reference2Name: 'Carlos Méndez', reference2Phone: '809-555-4321', reference2Relationship: 'Amigo',
-    preferredContact: 'whatsapp', receiveNotifications: true, receivePromotions: true,
-    notes: 'Cliente preferencial, buen historial de pagos.',
-  };
-
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
     if (clientId) loadClient();

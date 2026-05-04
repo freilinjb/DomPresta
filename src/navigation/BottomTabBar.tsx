@@ -45,7 +45,7 @@
   const TABS: TabItem[] = [
     { icon: 'grid-outline',         iconActive: 'grid',            label: 'Inicio',     screen: 'Home'     },
     { icon: 'document-text-outline',iconActive: 'document-text',   label: 'Préstamos',  screen: 'Loans',   badge: 3 },
-    { icon: 'add',                  label: '',    big: true,        screen: 'AddLoan'  },
+    { icon: 'add',                  label: '',    big: true,        screen: 'LoanForm'  },
     { icon: 'people-outline',       iconActive: 'people',          label: 'Clientes',   screen: 'Clients'  },
     { icon: 'person-outline',       iconActive: 'person',          label: 'Perfil',     screen: 'Profile' },
   ];
@@ -215,8 +215,8 @@
       setActiveIdx(idx);
       moveIndicator(idx);
 
-      if (tab.screen === 'AddLoan') {
-        navigation.navigate('AddLoan' as never);
+      if (tab.screen === 'LoanForm') {
+        navigation.navigate('LoanForm' as never);
       } else {
         navigation.navigate(
           'MainTabs' as never,

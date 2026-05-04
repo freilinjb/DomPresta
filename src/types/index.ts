@@ -25,19 +25,21 @@ export interface Client {
 // ─── Tipos de Préstamo ─────────────────────────────────────────────
 export interface Loan {
   id: string;
-  clientId: string;
+  borrowerName: string;
+  clientId?: string;
   amount: number;
-  interestRate: number;
-  term: number;
-  startDate: string;
-  endDate: string;
-  status: 'pending' | 'active' | 'paid' | 'overdue' | 'cancelled';
-  paymentFrequency: 'daily' | 'weekly' | 'biweekly' | 'monthly';
-  totalPaid: number;
-  remainingBalance: number;
-  nextPaymentDate: string;
-  createdAt: string;
-  updatedAt?: string;
+  interestRate?: number;
+  term?: number;
+  startDate?: string | Date;
+  endDate?: string | Date;
+  status: 'pending' | 'active' | 'paid' | 'overdue' | 'cancelled' | 'review';
+  paymentFrequency?: 'daily' | 'weekly' | 'biweekly' | 'monthly';
+  totalPaid?: number;
+  remainingBalance?: number;
+  nextPaymentDate?: string;
+  payments?: Payment[];
+  createdAt: string | Date;
+  updatedAt?: string | Date;
 }
 
 // ─── Tipos de Pago ─────────────────────────────────────────────────
