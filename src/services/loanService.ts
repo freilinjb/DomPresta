@@ -1,5 +1,6 @@
 import db from '../database/db';
 import { Loan, AmortizationDetail } from '../types';
+import { settingsService } from './settingsService';
 
 export interface LoanInput {
   id?: string;
@@ -50,9 +51,17 @@ class LoanService {
     const now = new Date().toISOString();
     const endDate = this.calculateEndDate(loan.firstPaymentDate, loan.term, loan.paymentFrequency);
 
+    // Obtener configuraciones por defecto
+    const defaultInterestRate = parseFloat(await settingsService.get('interest_rate_default') || '15');
+    const defaultLateFeePercentage = parseFloat(await settingsService.get('late_fee_percentage') || '5');
+    const defaultGracePeriod = parseInt(await settingsService.get('grace_period_days') || '3');
+
     const newLoan: any = {
       id,
       ...loan,
+      interestRate: loan.interestRate || defaultInterestRate,
+      informalLateFeePercentage: loan.informalLateFeePercentage || defaultLateFeePercentage,
+      informalGracePeriod: loan.informalGracePeriod || defaultGracePeriod,
       remainingBalance: loan.remainingBalance ?? loan.totalAmount,
       status: loan.status || 'active',
       sanIncludeWeekends: loan.sanIncludeWeekends ? 1 : 0,

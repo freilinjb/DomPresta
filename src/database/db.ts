@@ -114,7 +114,50 @@ export const initDatabase = async (): Promise<void> => {
       CREATE INDEX IF NOT EXISTS idx_amortization_loanId ON loan_amortization(loanId);
     `);
 
-    console.log('✅ Base de datos inicializada con préstamos');
+    // ✅ NUEVA: Tabla de pagos
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS payments (
+        id TEXT PRIMARY KEY NOT NULL,
+        loanId TEXT NOT NULL,
+        clientId TEXT NOT NULL,
+        amount REAL NOT NULL,
+        paymentDate TEXT NOT NULL,
+        paymentMethod TEXT NOT NULL,
+        referenceCode TEXT,
+        notes TEXT,
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT,
+        FOREIGN KEY (loanId) REFERENCES loans(id),
+        FOREIGN KEY (clientId) REFERENCES clients(id)
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_payments_loanId ON payments(loanId);
+      CREATE INDEX IF NOT EXISTS idx_payments_clientId ON payments(clientId);
+      CREATE INDEX IF NOT EXISTS idx_payments_date ON payments(paymentDate);
+    `);
+
+    // ✅ NUEVA: Tabla de configuración
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY NOT NULL,
+        value TEXT NOT NULL,
+        description TEXT,
+        updatedAt TEXT NOT NULL
+      );
+      
+      -- Insertar configuraciones por defecto
+      INSERT OR IGNORE INTO settings (key, value, description, updatedAt) VALUES
+        ('currency', 'DOP', 'Moneda por defecto (DOP, USD, etc.)', datetime('now')),
+        ('company_name', 'DomPresta', 'Nombre de la empresa', datetime('now')),
+        ('company_address', 'Santo Domingo, República Dominicana', 'Dirección de la empresa', datetime('now')),
+        ('company_phone', '+1 (809) 123-4567', 'Teléfono de la empresa', datetime('now')),
+        ('company_email', 'info@dompresta.com', 'Correo electrónico de la empresa', datetime('now')),
+        ('interest_rate_default', '15', 'Tasa de interés por defecto (%)', datetime('now')),
+        ('late_fee_percentage', '5', 'Porcentaje de mora por defecto (%)', datetime('now')),
+        ('grace_period_days', '3', 'Días de gracia por defecto', datetime('now'));
+    `);
+
+    console.log('✅ Base de datos inicializada con préstamos, pagos y configuración');
   } catch (error) {
     console.error('❌ Error al inicializar la base de datos:', error);
     throw error;

@@ -30,6 +30,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLoans } from '../../hooks/useLoans';
 import { Loan } from '../../types';
 import { MainTabParamList } from '../../navigation/types';
+import { paymentService } from '../../services/paymentService';
+import { settingsService } from '../../services/settingsService';
 
 const { width } = Dimensions.get('window');
 
@@ -276,8 +278,9 @@ const LoanCard: React.FC<{
   loan: Loan;
   index: number;
   onPress: () => void;
+  onPay: (loan: Loan) => void;
   onDelete?: (id: string) => void;
-}> = ({ loan, index, onPress, onDelete }) => {
+}> = ({ loan, index, onPress, onPay, onDelete }) => {
   const fmt = (v: number) => `RD$${v.toLocaleString('es-DO', { minimumFractionDigits: 2 })}`;
   const fullName = loan.borrowerName || `Cliente ${loan.clientId?.slice(0, 8)}`;
 
@@ -348,7 +351,7 @@ const LoanCard: React.FC<{
         </View>
 
         <View style={cardS.actions}>
-          <ActionBtn icon="cash-outline" label="Pagar" color={C.successMid} bg={C.successBg} onPress={() => Alert.alert('Pagar', `Registrar pago para ${fullName}`)} />
+          <ActionBtn icon="cash-outline" label="Pagar" color={C.successMid} bg={C.successBg} onPress={() => onPay(loan)} />
           <ActionBtn icon="notifications-outline" label="Recordar" color={C.brandVibrant} bg={C.brandFaint} onPress={() => Alert.alert('Recordatorio', `Enviar recordatorio a ${fullName}`)} />
           {onDelete && (
             <ActionBtn icon="trash-outline" label="Eliminar" color={C.dangerMid} bg={C.dangerBg} onPress={() => {
@@ -426,6 +429,11 @@ export const LoansScreen: React.FC<LoansScreenProps> = ({ navigation }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showSortModal, setShowSortModal] = useState(false);
   const scrollY = useRef(new RNAnimated.Value(0)).current;
+  const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('efectivo');
+  const [paymentNotes, setPaymentNotes] = useState('');
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   useEffect(() => {
     loadLoans();
@@ -451,6 +459,41 @@ export const LoansScreen: React.FC<LoansScreenProps> = ({ navigation }) => {
       Alert.alert('✅ Eliminado', 'Préstamo eliminado correctamente');
     } catch (error) {
       Alert.alert('Error', 'No se pudo eliminar el préstamo');
+    }
+  };
+
+  const handlePay = (loan: Loan) => {
+    setSelectedLoan(loan);
+    setPaymentAmount(loan.periodicPayment?.toString() || '');
+    setShowPaymentModal(true);
+  };
+
+  const handleRegisterPayment = async () => {
+    if (!selectedLoan || !paymentAmount) return;
+
+    try {
+      const amount = parseFloat(paymentAmount);
+      const payment = await paymentService.create({
+        loanId: selectedLoan.id,
+        clientId: selectedLoan.clientId || '',
+        amount,
+        paymentDate: new Date().toISOString().split('T')[0],
+        paymentMethod,
+        notes: paymentNotes,
+      });
+
+      // Generar recibo
+      const receipt = await paymentService.generateReceipt(payment.id);
+
+      // Mostrar recibo en alerta o algo
+      Alert.alert('✅ Pago Registrado', `Monto: ${receipt.payment.amount}\nRecibo: ${receipt.receiptNumber}`);
+
+      setShowPaymentModal(false);
+      setPaymentAmount('');
+      setPaymentNotes('');
+      loadLoans(); // Recargar préstamos
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo registrar el pago');
     }
   };
 
@@ -626,6 +669,7 @@ export const LoansScreen: React.FC<LoansScreenProps> = ({ navigation }) => {
                 loan={loan}
                 index={i}
                 onPress={() => (navigation as any).navigate('LoanDetails', { loanId: loan.id })}
+                onPay={handlePay}
                 onDelete={handleDeleteLoan}
               />
             ))
@@ -646,6 +690,54 @@ export const LoansScreen: React.FC<LoansScreenProps> = ({ navigation }) => {
       </Animated.View>
 
       <SortModal visible={showSortModal} onClose={() => setShowSortModal(false)} currentSort={sortType} onSelect={setSortType} />
+
+      {/* Payment Modal */}
+      <Modal visible={showPaymentModal} transparent animationType="fade" onRequestClose={() => setShowPaymentModal(false)}>
+        <Pressable style={modalS.overlay} onPress={() => setShowPaymentModal(false)}>
+          <Animated.View entering={ZoomIn.duration(180)} style={[modalS.sheet, { maxHeight: '70%' }]}>
+            <View style={modalS.handle} />
+            <Text style={modalS.title}>Registrar Pago</Text>
+            {selectedLoan && (
+              <ScrollView style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, color: C.textMuted, marginBottom: 16 }}>
+                  Préstamo: {selectedLoan.borrowerName} - {selectedLoan.id.slice(-8)}
+                </Text>
+                <Text style={{ fontSize: 14, color: C.textSec, marginBottom: 8 }}>Monto del pago</Text>
+                <TextInput
+                  style={[s.searchBox, { marginBottom: 16, paddingVertical: 12 }]}
+                  placeholder="0.00"
+                  keyboardType="numeric"
+                  value={paymentAmount}
+                  onChangeText={setPaymentAmount}
+                />
+                <Text style={{ fontSize: 14, color: C.textSec, marginBottom: 8 }}>Método de pago</Text>
+                <TextInput
+                  style={[s.searchBox, { marginBottom: 16, paddingVertical: 12 }]}
+                  placeholder="Efectivo, Transferencia, etc."
+                  value={paymentMethod}
+                  onChangeText={setPaymentMethod}
+                />
+                <Text style={{ fontSize: 14, color: C.textSec, marginBottom: 8 }}>Notas (opcional)</Text>
+                <TextInput
+                  style={[s.searchBox, { marginBottom: 16, paddingVertical: 12, height: 80 }]}
+                  placeholder="Notas del pago"
+                  multiline
+                  value={paymentNotes}
+                  onChangeText={setPaymentNotes}
+                />
+              </ScrollView>
+            )}
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+              <TouchableOpacity style={[modalS.row, { backgroundColor: C.surface, flex: 1 }]} onPress={() => setShowPaymentModal(false)}>
+                <Text style={[modalS.rowLabel, { color: C.textSec }]}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[modalS.row, { backgroundColor: C.brandVibrant, flex: 1 }]} onPress={handleRegisterPayment}>
+                <Text style={[modalS.rowLabel, { color: '#fff' }]}>Registrar Pago</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </Pressable>
+      </Modal>
     </View>
   );
 };
