@@ -8,13 +8,13 @@ import {
   RefreshControl,
   Dimensions,
   StatusBar,
-  Animated as RNAnimated,
+  Animated,
   Pressable,
 } from 'react-native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import Animated, {
+import Reanimated, {
   FadeInDown,
   SlideInRight,
   Layout,
@@ -35,6 +35,7 @@ import Svg, {
 } from 'react-native-svg';
 import { Loan } from '../../types';
 import { DatabaseService } from '../../services/databaseService';
+import { AuthService } from '../../services/authService';
 import { MainTabParamList } from '../../navigation/types';
 
 const { width } = Dimensions.get('window');
@@ -78,39 +79,6 @@ const SPACE = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 24 };
 
 type HomeScreenNavigationProp = BottomTabNavigationProp<MainTabParamList, 'Home'>;
 interface HomeScreenProps { navigation: HomeScreenNavigationProp; }
-
-// ─── Mock Data ────────────────────────────────────────────────────
-const MOCK_LOANS: Loan[] = [
-  { id: '1', borrowerName: 'Juan Rodríguez Méndez',    amount: 15750.50, status: 'active',  createdAt: '2026-01-15', nextPaymentDate: '2026-04-25' },
-  { id: '2', borrowerName: 'María Pérez González',      amount: 8250.00,  status: 'pending', createdAt: '2026-03-20', nextPaymentDate: '2026-04-28' },
-  { id: '3', borrowerName: 'Carlos García López',       amount: 22300.75, status: 'overdue', createdAt: '2025-11-10', nextPaymentDate: '2026-04-15' },
-  { id: '4', borrowerName: 'Ana Martínez Ruiz',         amount: 12500.00, status: 'review',  createdAt: '2026-04-05', nextPaymentDate: '2026-05-10' },
-  { id: '5', borrowerName: 'Roberto Fernández Marte',   amount: 18750.25, status: 'active',  createdAt: '2025-12-01', nextPaymentDate: '2026-04-22' },
-  { id: '6', borrowerName: 'Luisa Hernández Díaz',      amount: 14300.00, status: 'active',  createdAt: '2026-02-28', nextPaymentDate: '2026-04-30' },
-  { id: '7', borrowerName: 'Pedro Sánchez Vega',        amount: 9200.50,  status: 'pending', createdAt: '2026-04-12', nextPaymentDate: '2026-05-05' },
-  { id: '8', borrowerName: 'Sofía Ramírez Castro',      amount: 31200.00, status: 'overdue', createdAt: '2025-10-15', nextPaymentDate: '2026-04-10' },
-];
-
-const MOCK_CLIENTS = [
-  { id: '1', name: 'Elena Torres Vega',   email: 'elena.torres@email.com',   phone: '809-555-0123', loans: 3, totalAmount: 42500, status: 'active'  },
-  { id: '2', name: 'Miguel Ángel Cruz',   email: 'miguel.cruz@email.com',    phone: '809-555-0124', loans: 1, totalAmount: 15000, status: 'pending' },
-  { id: '3', name: 'Laura Jiménez Paz',   email: 'laura.jimenez@email.com',  phone: '809-555-0125', loans: 5, totalAmount: 78250, status: 'active'  },
-  { id: '4', name: 'Ricardo Mora Silva',  email: 'ricardo.mora@email.com',   phone: '809-555-0126', loans: 2, totalAmount: 28900, status: 'overdue' },
-];
-
-const MOCK_REPORTS = [
-  { id: '1', title: 'Reporte de Cobranzas – Abril 2026', date: '15 Abr 2026', type: 'collection', icon: 'cash-outline',         color: C.success  },
-  { id: '2', title: 'Análisis de Riesgo – Q1 2026',      date: '10 Abr 2026', type: 'risk',       icon: 'shield-checkmark-outline', color: C.warningMid },
-  { id: '3', title: 'Proyección de Crecimiento 2026',    date: '05 Abr 2026', type: 'growth',     icon: 'trending-up-outline',  color: C.brandVibrant },
-  { id: '4', title: 'Estado de Cartera – Semana 16',     date: '01 Abr 2026', type: 'portfolio',  icon: 'pie-chart-outline',    color: C.infoMid  },
-];
-
-const MOCK_ACTIVITY = [
-  { id: '1', type: 'payment',  name: 'Elena Torres Vega',  amount: 4500, time: 'hace 1 hora',  icon: 'checkmark-circle', color: C.successMid },
-  { id: '2', type: 'new',      name: 'Pedro Sánchez Vega', amount: 9200, time: 'hace 3 horas', icon: 'add-circle',       color: C.brandVibrant },
-  { id: '3', type: 'overdue',  name: 'Sofía Ramírez Castro', amount: 1200, time: 'hace 5 horas', icon: 'alert-circle',  color: C.dangerMid },
-  { id: '4', type: 'payment',  name: 'Juan Rodríguez',     amount: 2800, time: 'ayer',          icon: 'checkmark-circle', color: C.successMid },
-];
 
 const MONTHLY = [
   { month: 'Ene', amt: 12.5, h: 40 },
@@ -180,7 +148,7 @@ const SectionCard: React.FC<{
   badge?: string;
   action?: { label: string; onPress: () => void };
 }> = ({ title, icon, children, delay = 0, badge, action }) => (
-  <Animated.View entering={FadeInDown.delay(delay).springify()} style={secS.card}>
+  <Reanimated.View entering={FadeInDown.delay(delay).springify()} style={secS.card}>
     <View style={secS.header}>
       <View style={secS.iconWrap}>
         <Ionicons name={icon as any} size={16} color={C.brandVibrant} />
@@ -199,7 +167,7 @@ const SectionCard: React.FC<{
     </View>
     <View style={secS.divider} />
     <View style={secS.body}>{children}</View>
-  </Animated.View>
+  </Reanimated.View>
 );
 const secS = StyleSheet.create({
   card:      { backgroundColor: C.surface, borderRadius: 18, marginBottom: 12, borderWidth: 1, borderColor: C.border, overflow: 'hidden', shadowColor: C.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2 },
@@ -227,7 +195,7 @@ const MetricCard: React.FC<{
   const trendBg    = trendType === 'up' ? C.successBg  : trendType === 'down' ? C.dangerBg  : C.brandFaint;
   const trendIcon  = trendType === 'up' ? 'arrow-up'   : trendType === 'down' ? 'arrow-down' : 'remove';
   return (
-    <Animated.View entering={FadeInDown.delay(delay).springify()} style={[secS.card, mS.card]}>
+    <Reanimated.View entering={FadeInDown.delay(delay).springify()} style={[secS.card, mS.card]}>
       <View style={mS.topRow}>
         <View style={[secS.iconWrap, { backgroundColor: C.brandFaint }]}>
           <Ionicons name={icon as any} size={16} color={C.brandVibrant} />
@@ -239,7 +207,7 @@ const MetricCard: React.FC<{
       </View>
       <Text style={mS.value}>{value}</Text>
       <Text style={mS.label}>{label}</Text>
-    </Animated.View>
+    </Reanimated.View>
   );
 };
 const mS = StyleSheet.create({
@@ -309,7 +277,7 @@ const QuickAction: React.FC<{
   onPress: () => void;
   delay?: number;
 }> = ({ icon, label, sub, bg, iconColor = C.brandVibrant, onPress, delay = 0 }) => (
-  <Animated.View entering={FadeInDown.delay(delay).springify()} style={{ flex: 1 }}>
+  <Reanimated.View entering={FadeInDown.delay(delay).springify()} style={{ flex: 1 }}>
     <Pressable
       onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); }}
       style={({ pressed }) => [qS.btn, pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] }]}
@@ -320,7 +288,7 @@ const QuickAction: React.FC<{
       <Text style={qS.label}>{label}</Text>
       <Text style={qS.sub}>{sub}</Text>
     </Pressable>
-  </Animated.View>
+  </Reanimated.View>
 );
 const qS = StyleSheet.create({
   btn:      { backgroundColor: C.surface, borderRadius: 16, padding: SPACE.md, borderWidth: 1, borderColor: C.border, flex: 1 },
@@ -331,15 +299,17 @@ const qS = StyleSheet.create({
 
 // ─── SVG Charts ──────────────────────────────────────────────────
 
-const DonutChart: React.FC = () => {
+const DonutChart: React.FC<{ segments: { pct: number; color: string; label: string; count: number }[] }> = ({ segments }) => {
   const R    = 34;
   const CIRC = 2 * Math.PI * R;
   let offset = 0;
+  const totalCount = segments.reduce((sum, seg) => sum + seg.count, 0);
+
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACE.lg }}>
       <Svg width={100} height={100} viewBox="0 0 100 100">
         <G rotation={-90} origin="50,50">
-          {DONUT_SEGS.map((seg, i) => {
+          {segments.map((seg, i) => {
             const dash = seg.pct * CIRC;
             const cur  = offset;
             offset    += dash;
@@ -353,11 +323,11 @@ const DonutChart: React.FC = () => {
             );
           })}
         </G>
-        <SvgText x={50} y={46} textAnchor="middle" fontSize={13} fontWeight="900" fill={C.text}>143</SvgText>
+        <SvgText x={50} y={46} textAnchor="middle" fontSize={13} fontWeight="900" fill={C.text}>{totalCount}</SvgText>
         <SvgText x={50} y={58} textAnchor="middle" fontSize={8}  fill={C.textMuted} fontWeight="600">préstamos</SvgText>
       </Svg>
       <View style={{ flex: 1, gap: SPACE.sm }}>
-        {DONUT_SEGS.map((seg, i) => (
+        {segments.map((seg, i) => (
           <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: SPACE.sm }}>
             <View style={{ width: 10, height: 10, borderRadius: 3, backgroundColor: seg.color, flexShrink: 0 }} />
             <Text style={{ flex: 1, fontSize: 11, color: C.textSec, fontWeight: '600' }}>{seg.label}</Text>
@@ -444,7 +414,7 @@ const Sparkline: React.FC<{ data: number[]; color: string }> = ({ data, color })
 
 // ─── Alert Banner ─────────────────────────────────────────────────
 const AlertBanner: React.FC<{ count: number; onPress: () => void }> = ({ count, onPress }) => (
-  <Animated.View entering={FadeInDown.delay(200).springify()}>
+  <Reanimated.View entering={FadeInDown.delay(200).springify()}>
     <Pressable onPress={onPress} style={alS.banner}>
       <View style={alS.iconWrap}>
         <Ionicons name="warning" size={16} color={C.warningMid} />
@@ -455,7 +425,7 @@ const AlertBanner: React.FC<{ count: number; onPress: () => void }> = ({ count, 
       </View>
       <Ionicons name="chevron-forward" size={16} color={C.warningMid} />
     </Pressable>
-  </Animated.View>
+  </Reanimated.View>
 );
 const alS = StyleSheet.create({
   banner:  { flexDirection: 'row', alignItems: 'center', backgroundColor: C.warningBg, borderRadius: 14, padding: SPACE.md, borderWidth: 1, borderColor: 'rgba(180,83,9,0.15)', marginBottom: SPACE.md, gap: SPACE.sm },
@@ -470,13 +440,35 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [loans, setLoans] = useState<Loan[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [currencySymbol, setCurrencySymbol] = useState('RD$');
-  const scrollY = useRef(new RNAnimated.Value(0)).current;
+  const [userName, setUserName] = useState('Usuario');
+  const [companyName, setCompanyName] = useState('DomPresta S.R.L.');
+  const scrollY = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const savedCurrency = DatabaseService.getSetting('currency');
-    if (savedCurrency) setCurrencySymbol(savedCurrency);
+    const loadHomeData = async () => {
+      const currentUser = await AuthService.getCurrentUser();
+      if (currentUser?.name) setUserName(currentUser.name);
+
+      const savedCurrency = DatabaseService.getSetting('currency');
+      if (savedCurrency) {
+        setCurrencySymbol(savedCurrency);
+      } else {
+        DatabaseService.setSetting('currency', 'RD$');
+        setCurrencySymbol('RD$');
+      }
+
+      const savedCompanyName = DatabaseService.getSetting('companyName');
+      if (savedCompanyName) {
+        setCompanyName(savedCompanyName);
+      } else {
+        DatabaseService.setSetting('companyName', 'DomPresta S.R.L.');
+      }
+
+      fetchLoans();
+    };
+
     navigation.setOptions({ headerShown: false });
-    fetchLoans();
+    loadHomeData();
   }, []);
 
   const normalizeLoan = (loan: any): Loan => {
@@ -539,10 +531,93 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   const activeLoans  = loans.filter(l => l.status === 'active');
   const pendingLoans = loans.filter(l => l.status === 'pending');
+  const reviewLoans  = loans.filter(l => l.status === 'review');
   const overdueLoans = loans.filter(l => l.status === 'overdue');
   const totalAmount  = loans.reduce((sum, l) => sum + l.amount, 0);
 
+  const totalPaid = loans.reduce((sum, loan) => {
+    const paid = (loan.payments ?? [])
+      .filter((p) => p.status === 'paid')
+      .reduce((sub, p) => sub + p.amount, 0);
+    return sum + paid;
+  }, 0);
+
+  const currentDate = new Date();
+  const currentMonth = currentDate.getMonth();
+  const currentYear = currentDate.getFullYear();
+
+  const totalPaidThisMonth = loans.reduce((sum, loan) => {
+    const paid = (loan.payments ?? [])
+      .filter((p) => p.status === 'paid')
+      .filter((p) => p.date.getMonth() === currentMonth && p.date.getFullYear() === currentYear)
+      .reduce((sub, p) => sub + p.amount, 0);
+    return sum + paid;
+  }, 0);
+
+  const dueSoonLoans = loans.filter((loan) => {
+    if (!loan.nextPaymentDate) return false;
+    const dueDate = new Date(loan.nextPaymentDate);
+    const diffDays = Math.ceil((dueDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    return diffDays > 0 && diffDays <= 7;
+  });
+
+  const overdueBalance = loans.reduce((sum, loan) => loan.status === 'overdue' ? sum + loan.amount : sum, 0);
+  const availableBalance = totalAmount - totalPaid;
+  const totalInterest = loans.reduce((sum, loan) => {
+    const rate = loan.interestRate ?? 0;
+    const term = loan.term ?? 12;
+    return sum + (loan.amount * (rate / 100) * (term / 12));
+  }, 0);
+  const collectionRate = totalAmount > 0 ? Math.round((totalPaid / totalAmount) * 100) : 0;
+
+  const topClients = Object.values(
+    loans.reduce((acc: Record<string, { name: string; loans: number; totalAmount: number }>, loan) => {
+      const key = loan.borrowerName || 'Cliente';
+      if (!acc[key]) acc[key] = { name: key, loans: 0, totalAmount: 0 };
+      acc[key].loans += 1;
+      acc[key].totalAmount += loan.amount;
+      return acc;
+    }, {})
+  ).sort((a, b) => b.totalAmount - a.totalAmount).slice(0, 4);
+
+  const recentActivity = loans
+    .flatMap((loan) => (loan.payments ?? []).map((payment) => ({
+      id: payment.id,
+      borrowerName: loan.borrowerName,
+      amount: payment.amount,
+      status: payment.status,
+      date: payment.date,
+    })))
+    .sort((a, b) => b.date.getTime() - a.date.getTime())
+    .slice(0, 4);
+
+  const reportItems = [
+    { id: 'r1', title: `Préstamos activos: ${activeLoans.length}`, date: 'Actualizado', icon: 'pie-chart-outline', color: C.infoMid },
+    { id: 'r2', title: `Monto total: ${fmtShort(totalAmount)}`, date: 'Actualizado', icon: 'cash-outline', color: C.warningMid },
+    { id: 'r3', title: `Cobrado este mes: ${fmtShort(totalPaidThisMonth)}`, date: 'Actualizado', icon: 'checkmark-done-outline', color: C.successMid },
+    { id: 'r4', title: `Vencidos: ${overdueLoans.length}`, date: 'Actualizado', icon: 'warning-outline', color: C.dangerMid },
+  ];
+
+  const formatActivityTime = (date: Date) => {
+    const diffMs = Date.now() - date.getTime();
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    if (hours < 1) return 'Hace menos de una hora';
+    if (hours < 24) return `Hace ${hours}h`;
+    const days = Math.floor(hours / 24);
+    if (days === 1) return 'Ayer';
+    return `Hace ${days}d`;
+  };
+
+  const totalLoansCount = loans.length || 1;
+  const donutSegments = [
+    { pct: activeLoans.length / totalLoansCount, color: C.brandVibrant, label: 'Activos', count: activeLoans.length },
+    { pct: pendingLoans.length / totalLoansCount, color: C.brandLight, label: 'Pendientes', count: pendingLoans.length },
+    { pct: overdueLoans.length / totalLoansCount, color: '#f87171', label: 'Vencidos', count: overdueLoans.length },
+    { pct: Math.max(0, (totalLoansCount - activeLoans.length - pendingLoans.length - overdueLoans.length) / totalLoansCount), color: C.successMid, label: 'Otros', count: totalLoansCount - activeLoans.length - pendingLoans.length - overdueLoans.length },
+  ];
+
   const monthlyGoal   = 250000;
+  const monthLabel    = currentDate.toLocaleString('es-DO', { month: 'long' });
   const goalProgress  = Math.min((totalAmount / monthlyGoal) * 100, 100);
 
   const upcomingPayments = [...loans]
@@ -559,11 +634,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       )}
 
       {/* Monthly goal */}
-      <Animated.View entering={FadeInDown.delay(230).springify()} style={s.goalCard}>
+      <Reanimated.View entering={FadeInDown.delay(230).springify()} style={s.goalCard}>
         <View style={s.goalHeader}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACE.xs, flex: 1 }}>
             <Ionicons name="flag" size={13} color={C.brandVibrant} />
-            <Text style={s.goalTitle}>Meta de colocación – Abril</Text>
+            <Text style={s.goalTitle}>Meta de colocación – {monthLabel}</Text>
           </View>
           <Text style={s.goalValue}>{goalProgress.toFixed(0)}%</Text>
         </View>
@@ -574,19 +649,19 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           <Text style={s.goalSub}>{fmtShort(totalAmount)} alcanzados</Text>
           <Text style={s.goalSub}>Meta: {fmtShort(monthlyGoal)}</Text>
         </View>
-      </Animated.View>
+      </Reanimated.View>
 
       {/* Metric cards 2×2 */}
       <View style={s.row}>
-        <MetricCard icon="trending-up"  label="Cobrado este mes"  value="$22,450" trend="+15.2%"       trendType="up"      delay={270} />
+        <MetricCard icon="trending-up"  label="Cobrado este mes"  value={fmtShort(totalPaidThisMonth)} trend={`${collectionRate}%`}       trendType="up"      delay={270} />
         <View style={{ width: 10 }} />
-        <MetricCard icon="alert-circle" label="Por vencer (7d)"   value="$11,280" trend="12 préstamos" trendType="neutral" delay={300} />
+        <MetricCard icon="alert-circle" label="Por vencer (7d)"   value={`${dueSoonLoans.length}`} trend={`${upcomingPayments.length} préstamos`} trendType="neutral" delay={300} />
       </View>
       <View style={{ height: 10 }} />
       <View style={s.row}>
-        <MetricCard icon="pie-chart"    label="Tasa de cobro"    value="96.8%"   trend="+1.3%"   trendType="up"   delay={330} />
+        <MetricCard icon="pie-chart"    label="Tasa de cobro"    value={`${collectionRate}%`}   trend={collectionRate >= 90 ? 'Buen desempeño' : 'En mejora'}   trendType={collectionRate >= 90 ? 'up' : 'down'}   delay={330} />
         <View style={{ width: 10 }} />
-        <MetricCard icon="wallet"       label="Disponible"       value="$38.5K"  trend="Estable" trendType="neutral" delay={360} />
+        <MetricCard icon="wallet"       label="Disponible"       value={fmtShort(availableBalance)}  trend="Saldo actual" trendType="neutral" delay={360} />
       </View>
 
       {/* Upcoming payments */}
@@ -630,35 +705,42 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       {/* Loan pipeline */}
       <SectionCard title="Pipeline de préstamos" icon="git-network-outline" delay={430}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
-          <PipeStep label="Solicitud"   count="42"  state="done"   />
-          <PipeStep label="Evaluación"  count="35"  state="done"   />
-          <PipeStep label="Aprobación"  count="18"  state="active" />
-          <PipeStep label="Desembolso"  count="56"  state="done"   />
-          <PipeStep label="Al día"      count="143" state="done"   isLast />
+          <PipeStep label="Solicitudes" count={loans.length.toString()} state={loans.length ? 'done' : 'next'} />
+          <PipeStep label="Evaluación"  count={pendingLoans.length.toString()} state={pendingLoans.length ? 'active' : 'done'} />
+          <PipeStep label="Revisión"    count={reviewLoans.length.toString()}  state={reviewLoans.length ? 'active' : 'done'} />
+          <PipeStep label="Desembolso"  count={activeLoans.length.toString()} state={activeLoans.length ? 'done' : 'next'} />
+          <PipeStep label="Vencidos"   count={overdueLoans.length.toString()} state={overdueLoans.length ? 'done' : 'next'} isLast />
         </View>
       </SectionCard>
 
       {/* Activity feed */}
       <SectionCard title="Actividad reciente" icon="pulse-outline" delay={460}>
-        {MOCK_ACTIVITY.map((item, i) => (
-          <View
-            key={item.id}
-            style={[s.listItem, i === 0 && { paddingTop: 0 }, i === MOCK_ACTIVITY.length - 1 && { borderBottomWidth: 0, paddingBottom: 0 }]}
-          >
-            <View style={[s.actIcon, { backgroundColor: item.color + '18' }]}>
-              <Ionicons name={item.icon as any} size={18} color={item.color} />
-            </View>
-            <View style={{ flex: 1, marginLeft: SPACE.md, minWidth: 0 }}>
-              <Text style={s.listName} numberOfLines={1}>{item.name}</Text>
-              <Text style={s.listSub}>{item.time}</Text>
-            </View>
-            <Text style={[s.listAmt, {
-              color: item.type === 'payment' ? C.successMid : item.type === 'overdue' ? C.dangerMid : C.brandVibrant
-            }]}>
-              {item.type === 'payment' ? '+' : item.type === 'new' ? '+' : '!'} {fmtShort(item.amount)}
-            </Text>
-          </View>
-        ))}
+        {recentActivity.length > 0 ? (
+          recentActivity.map((item, i) => {
+            const isPaid = item.status === 'paid';
+            const iconName = isPaid ? 'checkmark-circle' : 'hourglass-outline';
+            const iconColor = isPaid ? C.successMid : C.warningMid;
+            return (
+              <View
+                key={item.id}
+                style={[s.listItem, i === 0 && { paddingTop: 0 }, i === recentActivity.length - 1 && { borderBottomWidth: 0, paddingBottom: 0 }]}
+              >
+                <View style={[s.actIcon, { backgroundColor: iconColor + '18' }]}> 
+                  <Ionicons name={iconName as any} size={18} color={iconColor} />
+                </View>
+                <View style={{ flex: 1, marginLeft: SPACE.md, minWidth: 0 }}>
+                  <Text style={s.listName} numberOfLines={1}>{item.borrowerName}</Text>
+                  <Text style={s.listSub}>{formatActivityTime(item.date)}</Text>
+                </View>
+                <Text style={[s.listAmt, { color: isPaid ? C.successMid : C.warningMid }]}> 
+                  {isPaid ? '+' : '•'} {fmtShort(item.amount)}
+                </Text>
+              </View>
+            );
+          })
+        ) : (
+          <Text style={[s.listSub, { padding: SPACE.md }]}>No hay actividad reciente. Revisa próximos pagos y movimientos.</Text>
+        )}
       </SectionCard>
 
       {/* Bar chart */}
@@ -668,13 +750,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
       {/* Donut chart */}
       <SectionCard title="Distribución de cartera" icon="pie-chart-outline" delay={520}>
-        <DonutChart />
+        <DonutChart segments={donutSegments} />
       </SectionCard>
 
       {/* Quick actions */}
-      <Animated.View entering={FadeInDown.delay(550).springify()}>
+      <Reanimated.View entering={FadeInDown.delay(550).springify()}>
         <Text style={[s.sectionTitle, { marginBottom: SPACE.sm }]}>Acciones rápidas</Text>
-      </Animated.View>
+      </Reanimated.View>
       <View style={s.row}>
         <QuickAction icon="add-circle"    label="Nuevo préstamo"   sub="Registrar solicitud" bg={C.brandFaint}  iconColor={C.brandVibrant} onPress={() => go('LoanRequestForm' as any)} delay={570} />
         <View style={{ width: 10 }} />
@@ -690,7 +772,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   );
 
   const renderPrestamos = () => (
-    <Animated.View entering={FadeIn.delay(150)}>
+    <Reanimated.View entering={FadeIn.delay(150)}>
       {/* Stats row */}
       <View style={s.row}>
         <StatBox label="Total préstamos"  value={loans.length.toString()}     color={C.text}        />
@@ -705,17 +787,17 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       </View>
 
       {/* Filter chips */}
-      <Animated.View entering={FadeInDown.delay(200).springify()} style={{ flexDirection: 'row', gap: SPACE.xs, marginVertical: SPACE.md }}>
+      <Reanimated.View entering={FadeInDown.delay(200).springify()} style={{ flexDirection: 'row', gap: SPACE.xs, marginVertical: SPACE.md }}>
         {['Todos', 'Activos', 'Pendientes', 'Vencidos'].map((f) => (
           <View key={f} style={[fS.chip, f === 'Todos' && fS.chipActive]}>
             <Text style={[fS.chipText, f === 'Todos' && fS.chipTextActive]}>{f}</Text>
           </View>
         ))}
-      </Animated.View>
+      </Reanimated.View>
 
       {/* Loan list */}
       {loans.map((loan, i) => (
-        <Animated.View
+        <Reanimated.View
           key={loan.id}
           entering={SlideInRight.delay(250 + i * 55).springify()}
           layout={Layout.springify()}
@@ -736,51 +818,51 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               <StatusBadge status={loan.status} />
             </View>
           </Pressable>
-        </Animated.View>
+        </Reanimated.View>
       ))}
-    </Animated.View>
+    </Reanimated.View>
   );
 
   const renderClientes = () => (
-    <Animated.View entering={FadeIn.delay(150)}>
+    <Reanimated.View entering={FadeIn.delay(150)}>
       {/* Client stats */}
-      <Animated.View entering={FadeInDown.delay(200).springify()} style={s.clientStatsRow}>
+      <Reanimated.View entering={FadeInDown.delay(200).springify()} style={s.clientStatsRow}>
         {[
-          { label: 'Total', value: '156', color: C.brandVibrant, bg: C.brandFaint },
-          { label: 'Activos',  value: '142', color: C.successMid,  bg: C.successBg  },
-          { label: 'Nuevos',   value: '14',  color: C.warningMid,  bg: C.warningBg  },
-          { label: 'En mora',  value: '8',   color: C.dangerMid,   bg: C.dangerBg   },
+          { label: 'Clientes', value: topClients.length.toString(), color: C.brandVibrant, bg: C.brandFaint },
+          { label: 'Préstamos', value: loans.length.toString(), color: C.successMid,  bg: C.successBg  },
+          { label: 'Cartera',   value: fmtShort(totalAmount), color: C.warningMid,  bg: C.warningBg  },
+          { label: 'Vencidos',  value: overdueLoans.length.toString(), color: C.dangerMid,   bg: C.dangerBg   },
         ].map((stat) => (
-          <View key={stat.label} style={[s.clientStat, { backgroundColor: stat.bg }]}>
+          <View key={stat.label} style={[s.clientStat, { backgroundColor: stat.bg }]}> 
             <Text style={[s.clientStatValue, { color: stat.color }]}>{stat.value}</Text>
             <Text style={s.clientStatLabel}>{stat.label}</Text>
           </View>
         ))}
-      </Animated.View>
+      </Reanimated.View>
 
       {/* Client list */}
-      <SectionCard title="Clientes destacados" icon="people-outline" delay={260} badge={MOCK_CLIENTS.length.toString()}>
-        {MOCK_CLIENTS.map((client, i) => (
+      <SectionCard title="Clientes destacados" icon="people-outline" delay={260} badge={topClients.length.toString()}>
+        {topClients.map((client, i) => (
           <Pressable
-            key={client.id}
+            key={client.name}
             style={({ pressed }) => [
               s.listItem,
               pressed && { opacity: 0.7 },
               i === 0 && { paddingTop: 0 },
-              i === MOCK_CLIENTS.length - 1 && { borderBottomWidth: 0, paddingBottom: 0 },
+              i === topClients.length - 1 && { borderBottomWidth: 0, paddingBottom: 0 },
             ]}
           >
             <Avatar name={client.name} index={i} size={42} />
             <View style={{ flex: 1, marginLeft: SPACE.md, minWidth: 0 }}>
               <Text style={s.listName} numberOfLines={1}>{client.name}</Text>
-              <Text style={s.listSub} numberOfLines={1}>{client.email}</Text>
+              <Text style={s.listSub} numberOfLines={1}>{client.loans} préstamos</Text>
             </View>
             <View style={{ alignItems: 'flex-end', gap: 3 }}>
               <Text style={{ fontSize: 13, fontWeight: '800', color: C.brandVibrant }}>
-                {client.loans} prést.
+                {fmtShort(client.totalAmount)}
               </Text>
               <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '600' }}>
-                {fmtShort(client.totalAmount)}
+                {client.loans} préstamos
               </Text>
             </View>
           </Pressable>
@@ -807,11 +889,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           </View>
         ))}
       </SectionCard>
-    </Animated.View>
+    </Reanimated.View>
   );
 
   const renderReportes = () => (
-    <Animated.View entering={FadeIn.delay(150)}>
+    <Reanimated.View entering={FadeIn.delay(150)}>
       {/* KPIs */}
       <SectionCard title="KPIs principales" icon="speedometer-outline" delay={200}>
         <View style={{ gap: SPACE.md }}>
@@ -835,15 +917,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       </SectionCard>
 
       {/* Reports list */}
-      <SectionCard title="Reportes generados" icon="document-text-outline" delay={280} badge={MOCK_REPORTS.length.toString()}>
-        {MOCK_REPORTS.map((report, i) => (
+      <SectionCard title="Reportes generados" icon="document-text-outline" delay={280} badge={reportItems.length.toString()}>
+        {reportItems.map((report, i) => (
           <Pressable
             key={report.id}
             style={({ pressed }) => [
               s.listItem,
               pressed && { opacity: 0.7 },
               i === 0 && { paddingTop: 0 },
-              i === MOCK_REPORTS.length - 1 && { borderBottomWidth: 0, paddingBottom: 0 },
+              i === reportItems.length - 1 && { borderBottomWidth: 0, paddingBottom: 0 },
             ]}
           >
             <View style={[s.actIcon, { backgroundColor: report.color + '18' }]}>
@@ -859,13 +941,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       </SectionCard>
 
       {/* Summary table */}
-      <SectionCard title="Resumen financiero – Q1 2026" icon="receipt-outline" delay={360}>
+      <SectionCard title={`Resumen financiero – ${currentYear}`} icon="receipt-outline" delay={360}>
         {[
-          { label: 'Total desembolsado',    value: 'RD$1.2M',   up: true  },
-          { label: 'Total cobrado',         value: 'RD$987K',   up: true  },
-          { label: 'Cartera vencida',       value: 'RD$53.5K',  up: false },
-          { label: 'Intereses generados',   value: 'RD$142K',   up: true  },
-          { label: 'Clientes nuevos',       value: '42',        up: true  },
+          { label: 'Total desembolsado',    value: fmtShort(totalAmount),   up: true  },
+          { label: 'Total cobrado',         value: fmtShort(totalPaid),     up: true  },
+          { label: 'Cartera vencida',       value: fmtShort(overdueBalance), up: false },
+          { label: 'Intereses generados',    value: fmtShort(totalInterest), up: true  },
+          { label: 'Clientes destacados',   value: topClients.length.toString(), up: true  },
         ].map((row, i, arr) => (
           <View
             key={row.label}
@@ -882,7 +964,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           </View>
         ))}
       </SectionCard>
-    </Animated.View>
+    </Reanimated.View>
   );
 
   return (
@@ -890,7 +972,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
       {/* Floating nav (on scroll) */}
-      <RNAnimated.View style={[s.floatNav, { opacity: navOpacity }]} pointerEvents="box-none">
+      <Animated.View style={[s.floatNav, { opacity: navOpacity }]} pointerEvents="box-none">
         <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFillObject} />
         <View style={s.floatRow}>
           <TouchableOpacity style={s.navBtn} onPress={openDrawer}>
@@ -901,11 +983,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             <Ionicons name="add" size={22} color={C.brandVibrant} />
           </TouchableOpacity>
         </View>
-      </RNAnimated.View>
+      </Animated.View>
 
-      <RNAnimated.ScrollView
+      <Animated.ScrollView
         showsVerticalScrollIndicator={false}
-        onScroll={RNAnimated.event(
+        onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
           { useNativeDriver: false }
         )}
@@ -930,7 +1012,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             </TouchableOpacity>
             <View style={{ alignItems: 'center' }}>
               <Text style={s.headerGreeting}>{greeting} 👋</Text>
-              <Text style={s.headerName}>Carlos Méndez</Text>
+              <Text style={s.headerName}>{userName}</Text>
             </View>
             <TouchableOpacity style={s.navBtnWhite} onPress={() => go('LoanRequests' as any)}>
               <Ionicons name="notifications-outline" size={20} color="white" />
@@ -939,7 +1021,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           </View>
 
           {/* Balance card */}
-          <Animated.View entering={FadeInDown.delay(100).springify()} style={s.balCard}>
+          <Reanimated.View entering={FadeInDown.delay(100).springify()} style={s.balCard}>
             <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: SPACE.md }}>
               <View style={{ flex: 1 }}>
                 <Text style={s.balLabel}>Cartera Total Activa</Text>
@@ -976,7 +1058,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                 </React.Fragment>
               ))}
             </View>
-          </Animated.View>
+          </Reanimated.View>
 
           {/* Tab bar */}
           <View style={s.tabBar}>
@@ -1000,10 +1082,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           {activeTab === 'Reportes'  && renderReportes()}
           <View style={{ height: 100 }} />
         </View>
-      </RNAnimated.ScrollView>
+      </Animated.ScrollView>
 
       {/* FAB */}
-      <Animated.View entering={ZoomIn.delay(900).springify()} style={s.fab}>
+      <Reanimated.View entering={ZoomIn.delay(900).springify()} style={s.fab}>
         <TouchableOpacity onPress={() => go('LoanRequestForm' as any)} activeOpacity={0.88} style={s.fabTouch}>
           <LinearGradient
             colors={[C.brandLight, C.brandVibrant, C.brandMid]}
@@ -1013,7 +1095,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             <Ionicons name="add" size={28} color="white" />
           </LinearGradient>
         </TouchableOpacity>
-      </Animated.View>
+      </Reanimated.View>
     </View>
   );
 };

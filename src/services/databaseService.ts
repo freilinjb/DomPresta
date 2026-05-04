@@ -132,6 +132,7 @@ export class DatabaseService {
           term: loanData.term,
           startDate: new Date(loanData.start_date),
           endDate: new Date(loanData.end_date),
+          createdAt: new Date(loanData.created_at),
           status: loanData.status,
           payments,
         } as Loan;
@@ -154,6 +155,7 @@ export class DatabaseService {
       term: loanData.term,
       startDate: new Date(loanData.start_date),
       endDate: new Date(loanData.end_date),
+      createdAt: new Date(loanData.created_at),
       status: loanData.status,
       payments,
     };

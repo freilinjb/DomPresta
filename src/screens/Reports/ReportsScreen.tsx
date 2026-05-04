@@ -29,9 +29,9 @@ import Animated, {
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
-import { LineChart, PieChart } from "react-native-chart-kit";
 import { Loan } from "../../types";
 import { RootStackParamList } from "../../navigation/types";
+import { loanService } from "../../services/loanService";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -107,56 +107,6 @@ interface ReportTemplate {
   type: "general" | "financial" | "collection" | "risk" | "customer" | "custom";
 }
 
-// ─── Datos Mock ────────────────────────────────────────────────────
-const MOCK_LOANS: Loan[] = [
-  { id: "1", borrowerName: "Juan Rodríguez Méndez", amount: 15750.5, status: "active", createdAt: "2026-01-15", interestRate: 12, term: 6 },
-  { id: "2", borrowerName: "María Pérez González", amount: 8250.0, status: "pending", createdAt: "2026-03-20", interestRate: 20, term: 30 },
-  { id: "3", borrowerName: "Carlos García López", amount: 22300.75, status: "overdue", createdAt: "2025-11-10", interestRate: 15, term: 12 },
-  { id: "4", borrowerName: "Ana Martínez Ruiz", amount: 12500.0, status: "active", createdAt: "2026-04-05", interestRate: 10, term: 8 },
-  { id: "5", borrowerName: "Roberto Fernández Marte", amount: 18750.25, status: "active", createdAt: "2025-12-01", interestRate: 18, term: 10 },
-  { id: "6", borrowerName: "Luisa Hernández Díaz", amount: 14300.0, status: "active", createdAt: "2026-02-28", interestRate: 14, term: 12 },
-  { id: "7", borrowerName: "Pedro Sánchez Vega", amount: 9200.5, status: "pending", createdAt: "2026-04-12", interestRate: 22, term: 15 },
-  { id: "8", borrowerName: "Sofía Ramírez Castro", amount: 31200.0, status: "overdue", createdAt: "2025-10-15", interestRate: 25, term: 20 },
-  { id: "9", borrowerName: "Diego Morales Ruiz", amount: 6850.0, status: "completed", createdAt: "2025-08-01", interestRate: 15, term: 6 },
-  { id: "10", borrowerName: "Carmen Vega Torres", amount: 9800.0, status: "active", createdAt: "2026-04-18", interestRate: 12, term: 4 },
-];
-
-const MOCK_REPORT_SUMMARY: ReportSummary = {
-  totalLoans: 10,
-  activeLoans: 6,
-  pendingLoans: 2,
-  overdueLoans: 2,
-  completedLoans: 1,
-  totalAmount: 155001.0,
-  totalInterest: 28950.25,
-  totalPayments: 45,
-  totalPaid: 68450.0,
-  totalPending: 106501.0,
-  averageInterestRate: 15.9,
-  defaultRate: 20.0,
-  collectionRate: 83.3,
-  monthlyCollections: [
-    { month: "Ene", amount: 18500 },
-    { month: "Feb", amount: 22300 },
-    { month: "Mar", amount: 19800 },
-    { month: "Abr", amount: 25400 },
-    { month: "May", amount: 0 },
-    { month: "Jun", amount: 0 },
-  ],
-  loansByType: [
-    { type: "Personal", count: 5, amount: 68500 },
-    { type: "San", count: 3, amount: 45600 },
-    { type: "Microcrédito", count: 2, amount: 12400 },
-    { type: "Vehículo", count: 1, amount: 78000 },
-  ],
-  topBorrowers: [
-    { name: "Sofía Ramírez Castro", amount: 31200, status: "overdue" },
-    { name: "Carlos García López", amount: 22300, status: "overdue" },
-    { name: "Roberto Fernández Marte", amount: 18750, status: "active" },
-    { name: "Juan Rodríguez Méndez", amount: 15750, status: "active" },
-  ],
-};
-
 const REPORT_TEMPLATES: ReportTemplate[] = [
   { id: "general", name: "Reporte General", description: "Resumen completo de todos los préstamos", icon: "document-text", color: C.brandVibrant, bgColor: C.brandFaint, type: "general" },
   { id: "financial", name: "Reporte Financiero", description: "Análisis de ingresos y rentabilidad", icon: "cash", color: C.successMid, bgColor: C.successBg, type: "financial" },
@@ -173,7 +123,7 @@ const AVATAR_PALETTES: [string, string][] = [
 ];
 
 const Avatar: React.FC<{ name: string; index: number; size?: number }> = ({ name, index, size = 40 }) => {
-  const initials = name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  const initials = name ? name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() : '?';
   const [c1, c2] = AVATAR_PALETTES[index % AVATAR_PALETTES.length];
   const radius = size * 0.28;
   return (
@@ -192,7 +142,9 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
     active: { label: 'Activo', bg: C.successBg, color: C.successMid, dot: '#10b981' },
     pending: { label: 'Pendiente', bg: C.warningBg, color: C.warningMid, dot: '#f59e0b' },
     overdue: { label: 'Vencido', bg: C.dangerBg, color: C.dangerMid, dot: '#ef4444' },
+    paid: { label: 'Completado', bg: C.infoBg, color: C.infoMid, dot: '#0284c7' },
     completed: { label: 'Completado', bg: C.infoBg, color: C.infoMid, dot: '#0284c7' },
+    cancelled: { label: 'Cancelado', bg: C.bg, color: C.textMuted, dot: C.textMuted },
   };
   const cfg = config[status] ?? { label: status, bg: C.bg, color: C.textMuted, dot: C.textMuted };
   return (
@@ -356,20 +308,91 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ navigation }) => {
   const [generatingReport, setGeneratingReport] = useState<string | null>(null);
   const [showCustomModal, setShowCustomModal] = useState(false);
   const scrollY = useRef(new RNAnimated.Value(0)).current;
-
-  const summary = MOCK_REPORT_SUMMARY;
+  const [summary, setSummary] = useState<ReportSummary | null>(null);
 
   useEffect(() => {
     loadLoans();
     navigation.setOptions({ headerShown: false });
   }, []);
 
+  const calculateSummary = (loans: Loan[]): ReportSummary => {
+    const totalLoans = loans.length;
+    const activeLoans = loans.filter(l => l.status === 'active').length;
+    const pendingLoans = loans.filter(l => l.status === 'pending').length;
+    const overdueLoans = loans.filter(l => l.status === 'overdue').length;
+    const completedLoans = loans.filter(l => l.status === 'paid').length;
+    const totalAmount = loans.reduce((sum, l) => sum + l.amount, 0);
+    const totalInterest = loans.reduce((sum, l) => sum + (l.totalInterest || 0), 0);
+    const totalPaid = loans.reduce((sum, l) => sum + (l.totalAmount - (l.remainingBalance || 0)), 0);
+    const totalPending = totalAmount - totalPaid;
+    const averageInterestRate = totalLoans > 0 ? loans.reduce((sum, l) => sum + l.interestRate, 0) / totalLoans : 0;
+    const defaultRate = totalLoans > 0 ? (overdueLoans / totalLoans) * 100 : 0;
+    const collectionRate = totalAmount > 0 ? (totalPaid / totalAmount) * 100 : 0;
+
+    // Monthly collections (simplified: group by month of createdAt)
+    const monthlyMap = new Map<string, number>();
+    loans.forEach(loan => {
+      const month = new Date(loan.createdAt).toLocaleDateString('es-DO', { month: 'short' });
+      monthlyMap.set(month, (monthlyMap.get(month) || 0) + loan.amount);
+    });
+    const monthlyCollections = Array.from(monthlyMap.entries()).map(([month, amount]) => ({ month, amount }));
+
+    // Loans by type
+    const typeMap = new Map<string, { count: number; amount: number }>();
+    loans.forEach(loan => {
+      const type = loan.loanTypeName || 'Otro';
+      const existing = typeMap.get(type) || { count: 0, amount: 0 };
+      typeMap.set(type, { count: existing.count + 1, amount: existing.amount + loan.amount });
+    });
+    const loansByType = Array.from(typeMap.entries()).map(([type, data]) => ({ type, ...data }));
+
+    // Top borrowers
+    const borrowerMap = new Map<string, { amount: number; status: string }>();
+    loans.forEach(loan => {
+      const name = loan.borrowerName || 'Desconocido';
+      const existing = borrowerMap.get(name);
+      if (!existing || loan.amount > existing.amount) {
+        borrowerMap.set(name, { amount: loan.amount, status: loan.status });
+      }
+    });
+    const topBorrowers = Array.from(borrowerMap.entries())
+      .map(([name, data]) => ({ name, ...data }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 4);
+
+    return {
+      totalLoans,
+      activeLoans,
+      pendingLoans,
+      overdueLoans,
+      completedLoans,
+      totalAmount,
+      totalInterest,
+      totalPayments: 0, // Placeholder
+      totalPaid,
+      totalPending,
+      averageInterestRate,
+      defaultRate,
+      collectionRate,
+      monthlyCollections,
+      loansByType,
+      topBorrowers,
+    };
+  };
+
   const loadLoans = async () => {
     try {
-      await new Promise(r => setTimeout(r, 800));
-      setLoans(MOCK_LOANS);
-    } catch { Alert.alert("Error", "No se pudieron cargar los préstamos"); }
-    finally { setLoading(false); setRefreshing(false); }
+      const fetchedLoans = await loanService.getAll();
+      setLoans(fetchedLoans);
+      const calculatedSummary = calculateSummary(fetchedLoans);
+      setSummary(calculatedSummary);
+    } catch (error) {
+      console.error('Error loading loans:', error);
+      Alert.alert("Error", "No se pudieron cargar los préstamos");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   };
 
   const handleRefresh = () => { setRefreshing(true); loadLoans(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); };
@@ -388,15 +411,15 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ navigation }) => {
   };
 
   const chartData = useMemo(() => ({
-    labels: summary.monthlyCollections.map(m => m.month),
-    datasets: [{ data: summary.monthlyCollections.map(m => m.amount), color: (opacity = 1) => `rgba(109, 40, 217, ${opacity})`, strokeWidth: 2 }],
+    labels: summary?.monthlyCollections.map(m => m.month) || [],
+    datasets: [{ data: summary?.monthlyCollections.map(m => m.amount) || [], color: (opacity = 1) => `rgba(109, 40, 217, ${opacity})`, strokeWidth: 2 }],
   }), [summary]);
 
-  const pieData = useMemo(() => summary.loansByType.map((item, i) => ({
+  const pieData = useMemo(() => summary?.loansByType.map((item, i) => ({
     name: item.type, amount: item.amount,
     color: [C.brandVibrant, C.successMid, C.warningMid, C.infoMid, C.orange][i % 5],
     legendFontColor: C.textMuted, legendFontSize: 10,
-  })), [summary]);
+  })) || [], [summary]);
 
   const navOpacity = scrollY.interpolate({ inputRange: [0, 80], outputRange: [0, 1], extrapolate: "clamp" });
 
@@ -457,21 +480,21 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ navigation }) => {
             </TouchableOpacity>
           </View>
           <Animated.View entering={FadeInDown.delay(100).springify()} style={s.headerSummary}>
-            <Text style={s.headerSummaryText}>{summary.totalLoans} préstamos • {formatCurrency(summary.totalAmount)} en cartera</Text>
+            <Text style={s.headerSummaryText}>{summary ? `${summary.totalLoans} préstamos • ${formatCurrency(summary.totalAmount)} en cartera` : 'Cargando...'}</Text>
           </Animated.View>
         </LinearGradient>
 
         <View style={s.body}>
           {/* Stats Grid */}
           <View style={s.statsGrid}>
-            <StatCard title="Total Préstamos" value={summary.totalLoans} icon="document-text" color={C.brandVibrant} bgColor={C.surface} trend={{ value: 8, isUp: true }} />
+            <StatCard title="Total Préstamos" value={summary?.totalLoans || 0} icon="document-text" color={C.brandVibrant} bgColor={C.surface} trend={{ value: 8, isUp: true }} />
             <View style={{ width: 10 }} />
-            <StatCard title="Tasa de Cobro" value={`${summary.collectionRate}%`} icon="checkmark-circle" color={C.successMid} bgColor={C.surface} trend={{ value: 3, isUp: true }} />
+            <StatCard title="Tasa de Cobro" value={`${summary?.collectionRate.toFixed(1) || 0}%`} icon="checkmark-circle" color={C.successMid} bgColor={C.surface} trend={{ value: 3, isUp: true }} />
           </View>
           <View style={s.statsGrid}>
-            <StatCard title="Monto Total" value={formatCurrency(summary.totalAmount)} icon="cash" color={C.warningMid} bgColor={C.surface} />
+            <StatCard title="Monto Total" value={formatCurrency(summary?.totalAmount || 0)} icon="cash" color={C.warningMid} bgColor={C.surface} />
             <View style={{ width: 10 }} />
-            <StatCard title="Pendiente" value={formatCurrency(summary.totalPending)} icon="time" color={C.dangerMid} bgColor={C.surface} />
+            <StatCard title="Pendiente" value={formatCurrency(summary?.totalPending || 0)} icon="time" color={C.dangerMid} bgColor={C.surface} />
           </View>
 
           {/* Chart: Monthly Collections */}
@@ -482,23 +505,10 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ navigation }) => {
                 <View style={s.chartBadge}><Text style={s.chartBadgeText}>2026</Text></View>
               </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <LineChart
-                  data={chartData}
-                  width={Math.max(SCREEN_WIDTH - 64, chartData.labels.length * 50)}
-                  height={180}
-                  chartConfig={{
-                    backgroundColor: C.surface,
-                    backgroundGradientFrom: C.surface,
-                    backgroundGradientTo: C.surface,
-                    decimalPlaces: 0,
-                    color: (opacity = 1) => `rgba(109, 40, 217, ${opacity})`,
-                    labelColor: (opacity = 1) => `rgba(100, 116, 139, ${opacity})`,
-                    style: { borderRadius: 16 },
-                    propsForDots: { r: "5", strokeWidth: "2", stroke: C.brandVibrant },
-                  }}
-                  bezier
-                  style={s.chart}
-                />
+                <View style={{ width: Math.max(SCREEN_WIDTH - 64, (chartData?.labels?.length || 0) * 50), height: 180, backgroundColor: C.surface, borderRadius: 16, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ color: C.textMuted, fontSize: 14 }}>Gráfico de cobranzas mensuales</Text>
+                  <Text style={{ color: C.textMuted, fontSize: 12, marginTop: 8 }}>Próximamente disponible</Text>
+                </View>
               </ScrollView>
             </View>
           </Animated.View>
@@ -507,16 +517,10 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ navigation }) => {
           <Animated.View entering={FadeInDown.delay(180).springify()}>
             <View style={[s.chartCard, { borderColor: C.border }]}>
               <Text style={s.chartTitle}>Distribución por Tipo</Text>
-              <PieChart
-                data={pieData}
-                width={SCREEN_WIDTH - 64}
-                height={180}
-                chartConfig={{ color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})` }}
-                accessor="amount"
-                backgroundColor="transparent"
-                paddingLeft="15"
-                absolute
-              />
+              <View style={{ width: SCREEN_WIDTH - 64, height: 180, backgroundColor: C.surface, borderRadius: 16, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: C.textMuted, fontSize: 14 }}>Gráfico de distribución por tipo</Text>
+                <Text style={{ color: C.textMuted, fontSize: 12, marginTop: 8 }}>Próximamente disponible</Text>
+              </View>
             </View>
           </Animated.View>
 
@@ -530,8 +534,8 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ navigation }) => {
           <SectionHeader title="Top Prestatarios" icon="trophy" />
           <Animated.View entering={FadeInDown.delay(250).springify()}>
             <View style={[s.topCard, { borderColor: C.border }]}>
-              {summary.topBorrowers.map((borrower, i) => (
-                <View key={i} style={[s.topRow, i < summary.topBorrowers.length - 1 && s.topBorder]}>
+              {(summary?.topBorrowers || []).map((borrower, i) => (
+                <View key={i} style={[s.topRow, i < (summary?.topBorrowers.length || 0) - 1 && s.topBorder]}>
                   <View style={s.topRank}><Text style={[s.topRankText, i < 3 && { color: i === 0 ? '#FFD700' : i === 1 ? '#C0C0C0' : '#CD7F32' }]}>#{i + 1}</Text></View>
                   <View style={s.topInfo}>
                     <Text style={s.topName}>{borrower.name}</Text>
