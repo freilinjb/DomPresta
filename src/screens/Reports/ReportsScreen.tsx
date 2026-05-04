@@ -382,36 +382,41 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ navigation }) => {
   };
 
   const loadLoans = async () => {
-    try {
-      const fetchedLoans = await loanService.getAll();
-      setLoans(fetchedLoans);
-      const calculatedSummary = calculateSummary(fetchedLoans);
-      setSummary(calculatedSummary);
-    } catch (error) {
-      console.error('Error loading loans:', error);
-      Alert.alert("Error", "No se pudieron cargar los préstamos");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+  try {
+    const fetchedLoans = await loanService.getAll();
+    setLoans(fetchedLoans);
+    const calculatedSummary = calculateSummary(fetchedLoans);
+    setSummary(calculatedSummary);
+  } catch (error) {
+    console.error('Error loading loans:', error);
+    Alert.alert("Error", "No se pudieron cargar los préstamos");
+  } finally {
+    setLoading(false);
+    setRefreshing(false);
+  }
+};
 
-  const handleRefresh = () => { setRefreshing(true); loadLoans(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); };
+const handleRefresh = () => { setRefreshing(true); loadLoans(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); };
 
-  const formatCurrency = (v: number) => `RD$${v.toLocaleString("es-DO", { minimumFractionDigits: 2 })}`;
+// ✅ Solo una declaración - usando configService
+const formatCurrency = (v: number) => configService.formatCurrency(v);
 
-  const handleGenerateReport = async (reportId: string, reportName: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setGeneratingReport(reportId);
-    try {
-      await new Promise(r => setTimeout(r, 1500));
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("✅ Reporte Generado", `"${reportName}" generado exitosamente.`);
-    } catch { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); Alert.alert("Error", "No se pudo generar el reporte"); }
-    finally { setGeneratingReport(null); }
-  };
+const handleGenerateReport = async (reportId: string, reportName: string) => {
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  setGeneratingReport(reportId);
+  try {
+    await new Promise(r => setTimeout(r, 1500));
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Alert.alert("✅ Reporte Generado", `"${reportName}" generado exitosamente.`);
+  } catch { 
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); 
+    Alert.alert("Error", "No se pudo generar el reporte"); 
+  } finally { 
+    setGeneratingReport(null); 
+  }
+};
 
-  const formatCurrency = (v: number) => configService.formatCurrency(v);
+  // const formatCurrency = (v: number) => configService.formatCurrency(v);
 
   const chartData = useMemo(() => ({
     labels: summary?.monthlyCollections.map(m => m.month) || [],
