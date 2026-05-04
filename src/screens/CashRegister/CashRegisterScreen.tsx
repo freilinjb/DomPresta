@@ -10,6 +10,7 @@ import {
 import { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../constants';
+import { configService } from '../../services/configService';
 import { MainTabParamList } from '../../navigation/types';
 
 type CashRegisterScreenNavigationProp = StackNavigationProp<MainTabParamList, 'CashRegister'>;
@@ -72,19 +73,19 @@ export const CashRegisterScreen: React.FC<CashRegisterScreenProps> = ({ navigati
       <View style={styles.summary}>
         <View style={styles.summaryItem}>
           <Text style={styles.summaryLabel}>Efectivo Inicial</Text>
-          <Text style={styles.summaryValue}>${cashData.initialCash.toLocaleString()}</Text>
+          <Text style={styles.summaryValue}>{configService.formatCurrency(cashData.initialCash)}</Text>
         </View>
         <View style={styles.summaryItem}>
           <Text style={styles.summaryLabel}>Ingresos Totales</Text>
-          <Text style={[styles.summaryValue, { color: COLORS.success }]}>${cashData.totalIncome.toLocaleString()}</Text>
+          <Text style={[styles.summaryValue, { color: COLORS.success }]}>{configService.formatCurrency(cashData.totalIncome)}</Text>
         </View>
         <View style={styles.summaryItem}>
           <Text style={styles.summaryLabel}>Egresos Totales</Text>
-          <Text style={[styles.summaryValue, { color: COLORS.danger }]}>${cashData.totalExpenses.toLocaleString()}</Text>
+          <Text style={[styles.summaryValue, { color: COLORS.danger }]}>{configService.formatCurrency(cashData.totalExpenses)}</Text>
         </View>
         <View style={styles.summaryItem}>
           <Text style={styles.summaryLabel}>Efectivo Actual</Text>
-          <Text style={[styles.summaryValue, { color: COLORS.primary, fontSize: 24 }]}>${cashData.currentCash.toLocaleString()}</Text>
+          <Text style={[styles.summaryValue, { color: COLORS.primary, fontSize: 24 }]}>{configService.formatCurrency(cashData.currentCash)}</Text>
         </View>
       </View>
 

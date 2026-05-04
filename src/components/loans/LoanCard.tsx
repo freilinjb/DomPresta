@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Loan } from '../../types';
+import { configService } from '../../services/configService';
 import { COLORS, LOAN_STATUSES } from '../../constants';
 
 interface LoanCardProps {
@@ -21,7 +22,7 @@ export const LoanCard: React.FC<LoanCardProps> = ({ loan, onPress }) => {
         </Text>
       </View>
       <View style={styles.details}>
-        <Text style={styles.amount}>${loan.amount.toLocaleString()}</Text>
+        <Text style={styles.amount}>{configService.formatCurrency(loan.amount)}</Text>
         <Text style={styles.rate}>{loan.interestRate}% interés</Text>
       </View>
       <Text style={styles.term}>{loan.term} meses</Text>

@@ -32,6 +32,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Loan } from "../../types";
 import { RootStackParamList } from "../../navigation/types";
 import { loanService } from "../../services/loanService";
+import { configService } from "../../services/configService";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -231,7 +232,7 @@ const templateS = StyleSheet.create({
 
 // ─── Loan Report Item (Estilo unificado) ───────────────────────────
 const LoanReportItem: React.FC<{ loan: Loan; onGenerate: () => void; index: number }> = ({ loan, onGenerate, index }) => {
-  const formatCurrency = (v: number) => `RD$${v.toLocaleString('es-DO', { minimumFractionDigits: 2 })}`;
+  const formatCurrency = (v: number) => configService.formatCurrency(v);
   const statusColors: Record<string, string> = {
     active: C.successMid, pending: C.warningMid, overdue: C.dangerMid, completed: C.infoMid,
   };
@@ -244,7 +245,7 @@ const LoanReportItem: React.FC<{ loan: Loan; onGenerate: () => void; index: numb
             <Avatar name={loan.borrowerName} index={index} size={42} />
             <View>
               <Text style={loanItemS.name}>{loan.borrowerName}</Text>
-              <Text style={loanItemS.date}>{new Date(loan.createdAt).toLocaleDateString('es-DO')}</Text>
+              <Text style={loanItemS.date}>{configService.formatDate(loan.createdAt)}</Text>
             </View>
           </View>
           <StatusBadge status={loan.status} />
@@ -332,7 +333,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ navigation }) => {
     // Monthly collections (simplified: group by month of createdAt)
     const monthlyMap = new Map<string, number>();
     loans.forEach(loan => {
-      const month = new Date(loan.createdAt).toLocaleDateString('es-DO', { month: 'short' });
+      const month = new Date(loan.createdAt).toLocaleDateString(configService.get('locale'), { month: 'short' });
       monthlyMap.set(month, (monthlyMap.get(month) || 0) + loan.amount);
     });
     const monthlyCollections = Array.from(monthlyMap.entries()).map(([month, amount]) => ({ month, amount }));
@@ -409,6 +410,8 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ navigation }) => {
     } catch { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); Alert.alert("Error", "No se pudo generar el reporte"); }
     finally { setGeneratingReport(null); }
   };
+
+  const formatCurrency = (v: number) => configService.formatCurrency(v);
 
   const chartData = useMemo(() => ({
     labels: summary?.monthlyCollections.map(m => m.month) || [],

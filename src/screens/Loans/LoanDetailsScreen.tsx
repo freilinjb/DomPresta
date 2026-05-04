@@ -33,6 +33,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Text as SvgText } from 'react-native-svg';
 import { Loan } from '../../types';
 import { DatabaseService } from '../../services/databaseService';
+import { configService } from '../../services/configService';
 import { RootStackParamList } from '../../navigation/types';
 
 const { width } = Dimensions.get('window');
@@ -132,9 +133,8 @@ interface ExtendedLoan {
 }
 
 // ─── Helper Functions ─────────────────────────────────────────────────────────
-const getCurrencySymbol = () => DatabaseService.getSetting('currency') || 'RD$';
-const formatCurrency = (v: number) => `${getCurrencySymbol()}${v.toLocaleString('es-DO', { minimumFractionDigits: 2 })}`;
-const formatDate = (d?: string | Date) => d ? new Date(d).toLocaleDateString('es-DO', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A';
+const formatCurrency = (v: number) => configService.formatCurrency(v, 2);
+const formatDate = (d?: string | Date) => d ? configService.formatDate(d) : 'N/A';
 
 const buildExtendedLoanFromDatabase = (loanData: any): ExtendedLoan => {
   const payments: LoanDetailPayment[] = (loanData.payments ?? []).map((payment: any, index: number) => ({
@@ -279,7 +279,7 @@ const generateLoanPDFHtml = (loan: ExtendedLoan) => {
   </div>
 
   <div class="footer">
-    Generado por DomPresta App - ${new Date().toLocaleDateString('es-DO')}
+    Generado por DomPresta App - ${configService.formatDate(new Date())}
   </div>
 </body>
 </html>`;
@@ -343,7 +343,7 @@ const generatePaymentReceiptHtml = (loan: ExtendedLoan, payment: LoanDetailPayme
       <p>*** ${payment.id.toUpperCase()} ***</p>
       <p style="font-size: 10px;">Gracias por su pago</p>
     </div>
-    <p style="text-align: center; font-size: 10px; color: #999;">${new Date().toLocaleString('es-DO')}</p>
+    <p style="text-align: center; font-size: 10px; color: #999;">${configService.formatDate(new Date())} ${new Date().toLocaleTimeString(configService.get('locale'))}</p>
   </div>
 </body>
 </html>`;
@@ -427,7 +427,7 @@ const PaymentItem: React.FC<{ payment: LoanDetailPayment; index: number; isSan?:
             </Text>
           </View>
           <View>
-            <Text style={payItemS.date}>{new Date(payment.date).toLocaleDateString('es-DO', { day: '2-digit', month: 'short' })}</Text>
+            <Text style={payItemS.date}>{new Date(payment.date).toLocaleDateString(configService.get('locale'), { day: '2-digit', month: 'short' })}</Text>
             {payment.notes && <Text style={payItemS.notes}>{payment.notes}</Text>}
           </View>
         </View>
@@ -664,7 +664,7 @@ export const LoanDetailsScreen: React.FC<LoanDetailsScreenProps> = ({ route, nav
       return;
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert('✅ Pago registrado', `Se ha registrado un pago de RD$${parseFloat(paymentAmount).toLocaleString()}`);
+    Alert.alert('✅ Pago registrado', `Se ha registrado un pago de ${configService.formatCurrency(parseFloat(paymentAmount))}`);
     setShowPaymentModal(false);
     setPaymentAmount('');
     setPaymentNotes('');

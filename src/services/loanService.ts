@@ -202,6 +202,7 @@ class LoanService {
       const loans = await db.getAllAsync<any>(
         `SELECT 
           l.*,
+          c.*,
           c.firstName || ' ' || c.lastName as borrowerName
         FROM loans l
         LEFT JOIN clients c ON l.clientId = c.id

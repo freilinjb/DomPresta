@@ -14,6 +14,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { Payment } from '../../types';
 import { LoanService } from '../../services/loanService';
 import { DatabaseService } from '../../services/databaseService';
+import { configService } from '../../services/configService';
 import { Button } from '../../components/common/Button';
 import { COLORS, PAYMENT_STATUSES } from '../../constants';
 import { RootStackParamList } from '../../navigation/types';
@@ -115,10 +116,10 @@ export const PaymentFormScreen: React.FC<PaymentFormScreenProps> = ({ route, nav
       </View>
 
       <View style={styles.loanInfo}>
-        <Text style={styles.infoText}>Monto del Préstamo: ${loan.amount.toLocaleString()}</Text>
-        <Text style={styles.infoText}>Saldo Pendiente: ${(
+        <Text style={styles.infoText}>Monto del Préstamo: {configService.formatCurrency(loan.amount)}</Text>
+        <Text style={styles.infoText}>Saldo Pendiente: {configService.formatCurrency(
           loan.amount - payments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0)
-        ).toLocaleString()}</Text>
+        )}</Text>
       </View>
 
       <View style={styles.form}>
@@ -161,10 +162,10 @@ export const PaymentFormScreen: React.FC<PaymentFormScreenProps> = ({ route, nav
               <View style={styles.paymentItem}>
                 <View style={styles.paymentInfo}>
                   <Text style={styles.paymentDate}>
-                    {item.date.toLocaleDateString()}
+                    {configService.formatDate(item.date)}
                   </Text>
                   <Text style={styles.paymentAmount}>
-                    ${item.amount.toLocaleString()}
+                    {configService.formatCurrency(item.amount)}
                   </Text>
                 </View>
 

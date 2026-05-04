@@ -31,7 +31,7 @@ import { useLoans } from '../../hooks/useLoans';
 import { Loan } from '../../types';
 import { MainTabParamList } from '../../navigation/types';
 import { paymentService } from '../../services/paymentService';
-import { settingsService } from '../../services/settingsService';
+import { configService } from '../../services/configService';
 
 const { width } = Dimensions.get('window');
 
@@ -281,7 +281,8 @@ const LoanCard: React.FC<{
   onPay: (loan: Loan) => void;
   onDelete?: (id: string) => void;
 }> = ({ loan, index, onPress, onPay, onDelete }) => {
-  const fmt = (v: number) => `RD$${v.toLocaleString('es-DO', { minimumFractionDigits: 2 })}`;
+  const fmt = (v: number) => configService.formatCurrency(v, 2);
+  console.log('Render LoanCard:', loan);
   const fullName = loan.borrowerName || `Cliente ${loan.clientId?.slice(0, 8)}`;
 
   const getProgressColor = () => {
@@ -527,11 +528,7 @@ export const LoansScreen: React.FC<LoansScreenProps> = ({ navigation }) => {
     totalAmount: loans.reduce((sum, l) => sum + (l.totalAmount || l.amount), 0),
   }), [loans]);
 
-  const fmtShort = (v: number): string => {
-    if (v >= 1_000_000) return `RD$${(v / 1_000_000).toFixed(1)}M`;
-    if (v >= 1_000) return `RD$${(v / 1_000).toFixed(1)}K`;
-    return `RD$${v.toFixed(0)}`;
-  };
+  const fmtShort = (v: number): string => configService.formatCurrencyShort(v);
 
   const navOpacity = scrollY.interpolate({ inputRange: [0, 70], outputRange: [0, 1], extrapolate: 'clamp' });
 

@@ -2,6 +2,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Loan, Payment } from '../types';
 import { DatabaseService } from './databaseService';
+import { configService } from './configService';
 
 export class ReportService {
   static async generateLoanReport(loan: Loan): Promise<void> {
@@ -155,7 +156,7 @@ export class ReportService {
             </div>
             <div class="info-row">
               <span class="label">Monto del Préstamo:</span>
-              <span class="value">$${loan.amount.toLocaleString()}</span>
+              <span class="value">${configService.formatCurrency(loan.amount)}</span>
             </div>
             <div class="info-row">
               <span class="label">Tasa de Interés:</span>
@@ -179,11 +180,11 @@ export class ReportService {
             </div>
             <div class="info-row">
               <span class="label">Total Pagado:</span>
-              <span class="value">$${totalPaid.toLocaleString()}</span>
+              <span class="value">${configService.formatCurrency(totalPaid)}</span>
             </div>
             <div class="info-row">
               <span class="label">Saldo Restante:</span>
-              <span class="value">$${remainingBalance.toLocaleString()}</span>
+              <span class="value">${configService.formatCurrency(remainingBalance)}</span>
             </div>
           </div>
 
@@ -201,8 +202,8 @@ export class ReportService {
                 <tbody>
                   ${loan.payments.map(payment => `
                     <tr>
-                      <td>${payment.date.toLocaleDateString()}</td>
-                      <td>$${payment.amount.toLocaleString()}</td>
+                      <td>${configService.formatDate(payment.date)}</td>
+                      <td>${configService.formatCurrency(payment.amount)}</td>
                       <td>${this.getPaymentStatusText(payment.status)}</td>
                     </tr>
                   `).join('')}
@@ -212,7 +213,7 @@ export class ReportService {
           </div>
 
           <div class="footer">
-            <p>Reporte generado el ${new Date().toLocaleDateString()} a las ${new Date().toLocaleTimeString()}</p>
+            <p>Reporte generado el ${configService.formatDate(new Date())} a las ${new Date().toLocaleTimeString(configService.get('locale'))}</p>
             <p>DomPresta - Sistema de Gestión de Préstamos</p>
           </div>
         </body>
@@ -326,7 +327,7 @@ export class ReportService {
               <div class="summary-label">Préstamos Pagados</div>
             </div>
             <div class="summary-item">
-              <div class="summary-number">$${totalAmount.toLocaleString()}</div>
+              <div class="summary-number">${configService.formatCurrency(totalAmount)}</div>
               <div class="summary-label">Monto Total</div>
             </div>
           </div>
@@ -346,18 +347,18 @@ export class ReportService {
               ${loans.map(loan => `
                 <tr>
                   <td>${loan.borrowerName}</td>
-                  <td>$${loan.amount.toLocaleString()}</td>
+                  <td>${configService.formatCurrency(loan.amount)}</td>
                   <td>${loan.interestRate}%</td>
                   <td>${loan.term} meses</td>
                   <td class="status-${loan.status}">${this.getStatusText(loan.status)}</td>
-                  <td>${loan.startDate.toLocaleDateString()}</td>
+                  <td>${configService.formatDate(loan.startDate)}</td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
 
           <div class="footer">
-            <p>Reporte generado el ${new Date().toLocaleDateString()} a las ${new Date().toLocaleTimeString()}</p>
+            <p>Reporte generado el ${configService.formatDate(new Date())} a las ${new Date().toLocaleTimeString(configService.get('locale'))}</p>
             <p>DomPresta - Sistema de Gestión de Préstamos</p>
           </div>
         </body>
@@ -463,7 +464,7 @@ export class ReportService {
             </div>
             <div class="info-row">
               <span class="label">Monto del Préstamo:</span>
-              <span>$${loan.amount.toLocaleString()}</span>
+              <span>${configService.formatCurrency(loan.amount)}</span>
             </div>
             <div class="info-row">
               <span class="label">Tasa de Interés:</span>
@@ -483,8 +484,8 @@ export class ReportService {
               <tbody>
                 ${payments.map(payment => `
                   <tr>
-                    <td>${payment.date.toLocaleDateString()}</td>
-                    <td>$${payment.amount.toLocaleString()}</td>
+                    <td>${configService.formatDate(payment.date)}</td>
+                    <td>${configService.formatCurrency(payment.amount)}</td>
                     <td class="status-${payment.status}">${this.getPaymentStatusText(payment.status)}</td>
                   </tr>
                 `).join('')}
@@ -492,12 +493,12 @@ export class ReportService {
             </table>
 
             <div class="summary">
-              <strong>Total Pagado: $${totalPaid.toLocaleString()}</strong>
+              <strong>Total Pagado: ${configService.formatCurrency(totalPaid)}</strong>
             </div>
           ` : '<p>No hay pagos registrados para este préstamo.</p>'}
 
           <div class="footer">
-            <p>Reporte generado el ${new Date().toLocaleDateString()} a las ${new Date().toLocaleTimeString()}</p>
+            <p>Reporte generado el ${configService.formatDate(new Date())} a las ${new Date().toLocaleTimeString(configService.get('locale'))}</p>
             <p>DomPresta - Sistema de Gestión de Préstamos</p>
           </div>
         </body>

@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { DatabaseService } from './databaseService';
+import { configService } from './configService';
 import { Loan } from '../types';
 
 Notifications.setNotificationHandler({
@@ -51,7 +52,7 @@ export class NotificationService {
       const notificationId = await Notifications.scheduleNotificationAsync({
         content: {
           title: 'Recordatorio de Pago',
-          body: `Pago pendiente para ${loan.borrowerName}: $${loan.amount.toLocaleString()}`,
+          body: `Pago pendiente para ${loan.borrowerName}: ${configService.formatCurrency(loan.amount)}`,
           data: { loanId: loan.id, type: 'payment_reminder' },
         },
         trigger: { type: 'date', date: reminderDate },
@@ -94,7 +95,7 @@ export class NotificationService {
       const notificationId = await Notifications.scheduleNotificationAsync({
         content: {
           title: 'Préstamo Próximo a Vencer',
-          body: `El préstamo de ${loan.borrowerName} vence el ${loan.endDate.toLocaleDateString()}`,
+          body: `El préstamo de ${loan.borrowerName} vence el ${configService.formatDate(loan.endDate)}`,
           data: { loanId: loan.id, type: 'loan_due_reminder' },
         },
         trigger: { type: 'date', date: reminderDate },

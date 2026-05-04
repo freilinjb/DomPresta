@@ -1,5 +1,6 @@
 import db from '../database/db';
 import { settingsService } from './settingsService';
+import { configService } from './configService';
 
 export interface PaymentInput {
   id?: string;
@@ -256,13 +257,10 @@ class PaymentService {
       if (!loan) throw new Error('Préstamo no encontrado');
 
       // Obtener configuraciones
-      const currency = await settingsService.get('currency') || 'DOP';
       const companyName = await settingsService.get('company_name') || 'DomPresta';
       const companyAddress = await settingsService.get('company_address') || '';
       const companyPhone = await settingsService.get('company_phone') || '';
       const companyEmail = await settingsService.get('company_email') || '';
-
-      const formatCurrency = (amount: number) => `${currency} ${amount.toLocaleString('es-DO', { minimumFractionDigits: 2 })}`;
 
       return {
         receiptNumber: payment.id,
@@ -278,17 +276,17 @@ class PaymentService {
         },
         loan: {
           id: loan.id,
-          amount: formatCurrency(loan.amount),
-          remainingBalance: formatCurrency(loan.remainingBalance),
+          amount: configService.formatCurrency(loan.amount),
+          remainingBalance: configService.formatCurrency(loan.remainingBalance),
         },
         payment: {
-          amount: formatCurrency(payment.amount),
-          date: new Date(payment.paymentDate).toLocaleDateString('es-DO'),
+          amount: configService.formatCurrency(payment.amount),
+          date: configService.formatDate(payment.paymentDate),
           method: payment.paymentMethod,
           reference: payment.referenceCode,
           notes: payment.notes,
         },
-        generatedAt: new Date().toLocaleString('es-DO'),
+        generatedAt: `${configService.formatDate(new Date())} ${new Date().toLocaleTimeString(configService.get('locale'))}`,
       };
     } catch (error) {
       console.error('Error al generar recibo:', error);

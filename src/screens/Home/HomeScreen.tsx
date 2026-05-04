@@ -36,6 +36,7 @@ import Svg, {
 import { Loan } from '../../types';
 import { DatabaseService } from '../../services/databaseService';
 import { AuthService } from '../../services/authService';
+import { configService } from '../../services/configService';
 import { MainTabParamList } from '../../navigation/types';
 
 const { width } = Dimensions.get('window');
@@ -439,7 +440,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState<'Resumen' | 'Préstamos' | 'Clientes' | 'Reportes'>('Resumen');
   const [loans, setLoans] = useState<Loan[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [currencySymbol, setCurrencySymbol] = useState('RD$');
   const [userName, setUserName] = useState('Usuario');
   const [companyName, setCompanyName] = useState('DomPresta S.R.L.');
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -449,14 +449,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       const currentUser = await AuthService.getCurrentUser();
       if (currentUser?.name) setUserName(currentUser.name);
 
-      const savedCurrency = DatabaseService.getSetting('currency');
-      if (savedCurrency) {
-        setCurrencySymbol(savedCurrency);
-      } else {
-        DatabaseService.setSetting('currency', 'RD$');
-        setCurrencySymbol('RD$');
-      }
-
       const savedCompanyName = DatabaseService.getSetting('companyName');
       if (savedCompanyName) {
         setCompanyName(savedCompanyName);
@@ -464,6 +456,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         DatabaseService.setSetting('companyName', 'DomPresta S.R.L.');
       }
 
+      await configService.initialize();
       fetchLoans();
     };
 
@@ -505,12 +498,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     fetchLoans();
   }, []);
 
-  const fmt      = (v: number) => `${currencySymbol}${v.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  const fmtShort = (v: number) => {
-    if (v >= 1_000_000) return `${currencySymbol}${(v / 1_000_000).toFixed(1)}M`;
-    if (v >= 1_000)     return `${currencySymbol}${(v / 1_000).toFixed(1)}K`;
-    return `${currencySymbol}${v.toFixed(0)}`;
-  };
+  const fmt      = (v: number) => configService.formatCurrency(v, 2);
+  const fmtShort = (v: number) => configService.formatCurrencyShort(v);
 
   const go = (screen: keyof MainTabParamList) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -810,7 +799,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             <View style={{ flex: 1, minWidth: 0, marginLeft: SPACE.md }}>
               <Text style={s.listName} numberOfLines={1}>{loan.borrowerName}</Text>
               <Text style={s.listSub}>
-                #{loan.id} · {new Date(loan.createdAt || Date.now()).toLocaleDateString('es-DO', { day: '2-digit', month: 'short', year: '2-digit' })}
+                #{loan.id} · {new Date(loan.createdAt || Date.now()).toLocaleDateString(configService.get('locale'), { day: '2-digit', month: 'short', year: '2-digit' })}
               </Text>
             </View>
             <View style={{ alignItems: 'flex-end', gap: 4 }}>

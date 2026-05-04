@@ -24,6 +24,7 @@ import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthService } from '../../services/authService';
 import { DatabaseService } from '../../services/databaseService';
+import { configService } from '../../services/configService';
 import { MainTabParamList, RootStackParamList } from '../../navigation/types';
 
 // ─── Design System (idéntico al resto de la app) ──────────────────────────────
@@ -492,6 +493,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       DatabaseService.setSetting('copies', copies.toString());
       DatabaseService.setSetting('paperSize', paperSize);
       DatabaseService.setSetting('autoPrint', autoPrint ? '1' : '0');
+      await configService.refresh();
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('✓ Configuración guardada', 'Todos los cambios fueron guardados correctamente.');

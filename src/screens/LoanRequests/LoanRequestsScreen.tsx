@@ -28,6 +28,7 @@ import Animated, {
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { MainTabParamList } from '../../navigation/types';
+import { configService } from '../../services/configService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -124,12 +125,8 @@ const AVATAR_PALETTES: [string, string][] = [
   ['#6366f1', '#8b5cf6'],
 ];
 
-const fmt = (v: number) => `RD$${v.toLocaleString('es-DO', { minimumFractionDigits: 2 })}`;
-const fmtShort = (v: number): string => {
-  if (v >= 1_000_000) return `RD$${(v / 1_000_000).toFixed(1)}M`;
-  if (v >= 1_000) return `RD$${(v / 1_000).toFixed(1)}K`;
-  return `RD$${v.toFixed(0)}`;
-};
+const fmt = (v: number) => configService.formatCurrency(v, 2);
+const fmtShort = (v: number): string => configService.formatCurrencyShort(v);
 
 // ─── Status config ────────────────────────────────────────────────
 const STATUS_CONFIG: Record<LoanRequest['status'], { label: string; bg: string; color: string; border: string; icon: string; dot: string }> = {
@@ -295,7 +292,7 @@ const RequestCard: React.FC<{
   const isPending = request.status === 'pending';
   const isReview = request.status === 'under_review';
   const showActions = isPending || isReview;
-  const dateStr = new Date(request.createdAt).toLocaleDateString('es-DO', { day: '2-digit', month: 'short' });
+  const dateStr = new Date(request.createdAt).toLocaleDateString(configService.get('locale'), { day: '2-digit', month: 'short' });
 
   return (
     <Animated.View entering={FadeInDown.delay(80 + index * 45).springify()} layout={Layout.springify()}>

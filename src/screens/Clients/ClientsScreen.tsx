@@ -28,6 +28,7 @@ import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { MainTabParamList } from '../../navigation/types';
 import { useClients } from '@/hooks/useClients';
+import { configService } from '../../services/configService';
 
 const { width } = Dimensions.get('window');
 
@@ -473,7 +474,7 @@ const modalS = StyleSheet.create({
 
 // ─── ClientCard (Rediseñado con el nuevo estilo) ─────────────────
 const ClientCard: React.FC<{ client: Client; index: number; onPress: () => void }> = ({ client, index, onPress }) => {
-  const fmt = (v: number) => `RD$${v.toLocaleString('es-DO', { minimumFractionDigits: 2 })}`;
+  const fmt = (v: number) => configService.formatCurrency(v, 2);
   const fullName = `${client.firstName} ${client.lastName}`;
   
   return (
@@ -521,7 +522,7 @@ const ClientCard: React.FC<{ client: Client; index: number; onPress: () => void 
           <Text style={cardS.footerText}>{client.city}</Text>
           <Text style={cardS.dot}>·</Text>
           <Ionicons name="calendar-outline" size={12} color={C.textMuted} />
-          <Text style={cardS.footerText}>Contacto: {new Date(client.lastContact).toLocaleDateString('es-DO')}</Text>
+          <Text style={cardS.footerText}>Contacto: {configService.formatDate(client.lastContact)}</Text>
         </View>
 
         <View style={cardS.actions}>

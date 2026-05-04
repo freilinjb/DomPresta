@@ -26,6 +26,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
+import { configService } from '../../services/configService';
 import { RootStackParamList } from '@/navigation/types';
 import { useClients } from '@/hooks/useClients';
 import { Client } from '@/types/index';
@@ -263,17 +264,10 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({ route,
     }
   };
 
-  const formatCurrency = (value: number) => {
-    return `RD$${value.toLocaleString('es-DO', { minimumFractionDigits: 2 })}`;
-  };
+  const formatCurrency = (value: number) => configService.formatCurrency(value, 2);
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('es-DO', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-  };
+  const formatDate = (dateString: string) => configService.formatDate(dateString);
+
 
   const getCreditScoreColor = (score?: number) => {
     if (!score) return C.textMuted;
