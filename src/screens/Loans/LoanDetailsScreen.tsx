@@ -1,4 +1,4 @@
-// LoanDetailsScreen.tsx (Versión Mejorada con PDF y Recibos)
+// LoanDetailsScreen.tsx - Corregido para usar loanService
 import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
@@ -7,7 +7,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  Share,
   Animated as RNAnimated,
   Dimensions,
   StatusBar,
@@ -28,13 +27,12 @@ import Animated, {
 import * as Haptics from 'expo-haptics';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Text as SvgText } from 'react-native-svg';
-import { Loan } from '../../types';
-import { DatabaseService } from '../../services/databaseService';
-import { configService } from '../../services/configService';
 import { RootStackParamList } from '../../navigation/types';
+import { useLoans } from '../../hooks/useLoans';
+import { useClients } from '../../hooks/useClients';
+import { configService } from '../../services/configService';
 
 const { width } = Dimensions.get('window');
 
@@ -48,7 +46,6 @@ const C = {
   brandFaint: '#f5f3ff',
   bg: '#f8f7fc',
   surface: '#ffffff',
-  surfaceHover: '#faf9ff',
   border: 'rgba(109,40,217,0.08)',
   borderStrong: 'rgba(109,40,217,0.15)',
   text: '#0f0a1e',
@@ -67,8 +64,6 @@ const C = {
   info: '#0369a1',
   infoMid: '#0284c7',
   infoBg: '#f0f9ff',
-  review: '#7c3aed',
-  reviewBg: '#f5f3ff',
   shadow: 'rgba(109,40,217,0.12)',
 };
 
@@ -99,7 +94,7 @@ interface ExtendedLoan {
   id: string;
   borrowerName: string;
   amount: number;
-  status: 'pending' | 'active' | 'paid' | 'overdue' | 'cancelled' | 'review';
+  status: 'pending' | 'active' | 'paid' | 'overdue' | 'cancelled';
   startDate: string;
   endDate: string;
   interestRate: number;
@@ -109,16 +104,15 @@ interface ExtendedLoan {
   clientPhone?: string;
   clientAddress?: string;
   clientDocument?: string;
-  loanType: 'formal' | 'informal' | 'san';
+  loanType: string;
   loanTypeName: string;
-  calculationMethod: 'standard' | 'flat' | 'san';
-  paymentFrequency: 'daily' | 'weekly' | 'biweekly' | 'monthly';
+  paymentFrequency: string;
   guarantorName?: string;
   guarantorPhone?: string;
   guarantorDocument?: string;
-  collateralType?: string;
-  collateralValue?: number;
-  collateralDescription?: string;
+  guaranteeType?: string;
+  guaranteeValue?: number;
+  guaranteeDescription?: string;
   totalPaid: number;
   remainingBalance: number;
   nextPaymentDate?: string;
@@ -127,7 +121,6 @@ interface ExtendedLoan {
   lateFees: number;
   payments: LoanDetailPayment[];
   notes?: string;
-  createdBy?: string;
   createdAt: string;
   updatedAt?: string;
 }
@@ -136,77 +129,99 @@ interface ExtendedLoan {
 const formatCurrency = (v: number) => configService.formatCurrency(v, 2);
 const formatDate = (d?: string | Date) => d ? configService.formatDate(d) : 'N/A';
 
-const buildExtendedLoanFromDatabase = (loanData: any): ExtendedLoan => {
-  const payments: LoanDetailPayment[] = (loanData.payments ?? []).map((payment: any, index: number) => ({
+// Función para convertir el préstamo de loanService al formato ExtendedLoan
+const mapToExtendedLoan = (loanData: any, clientData?: any, payments: any[] = []): ExtendedLoan => {
+  // Crear pagos desde loan_amortization si existe
+  const amortizationPayments: LoanDetailPayment[] = (loanData.amortizationSchedule || []).map((item: any, index: number) => ({
+    id: `${loanData.id}_period_${item.period}`,
+    date: item.payment_date || item.paymentDate,
+    amount: item.payment,
+    principal: item.principal,
+    interest: item.interest,
+    lateFee: 0,
+    status: item.status === 'paid' ? 'paid' : item.status === 'pending' ? 'pending' : 'pending',
+    paymentMethod: 'Efectivo',
+    notes: '',
+    period: item.period,
+  }));
+
+  // También incluir pagos reales de la tabla payments
+  const realPayments: LoanDetailPayment[] = payments.map((payment: any, index: number) => ({
     id: payment.id,
-    date: payment.date instanceof Date ? payment.date.toISOString().split('T')[0] : payment.date,
+    date: payment.paymentDate || payment.date,
     amount: payment.amount,
     principal: payment.amount,
     interest: 0,
     lateFee: 0,
-    status: payment.status === 'paid' ? 'paid' : payment.status === 'overdue' ? 'late' : payment.status === 'pending' ? 'pending' : 'partial',
+    status: 'paid',
     paymentMethod: payment.paymentMethod || 'Efectivo',
     notes: payment.notes || '',
     period: index + 1,
   }));
 
-  const totalPaid = payments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0);
-  const remainingBalance = Math.max((loanData.remainingBalance ?? loanData.amount - totalPaid) as number, 0);
-  const pendingPayments = payments
-    .filter(p => p.status !== 'paid')
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  // Combinar y ordenar pagos
+  const allPayments = [...amortizationPayments, ...realPayments];
+  
+  // Marcar pagos como pagados si existen en realPayments
+  realPayments.forEach(rp => {
+    const matchingAmort = allPayments.find(ap => 
+      Math.abs(ap.amount - rp.amount) < 0.01 && 
+      new Date(ap.date).toDateString() === new Date(rp.date).toDateString()
+    );
+    if (matchingAmort) {
+      matchingAmort.status = 'paid';
+      matchingAmort.paymentMethod = rp.paymentMethod;
+    }
+  });
 
-  const nextPayment = pendingPayments[0];
-  const nextPaymentDate = nextPayment?.date;
-  const nextPaymentAmount = nextPayment?.amount ?? 0;
-  const daysLate = Math.max(
-    0,
-    ...pendingPayments
-      .filter(p => p.status === 'late')
-      .map(p => Math.max(0, Math.ceil((Date.now() - new Date(p.date).getTime()) / (1000 * 60 * 60 * 24))))
-  );
+  const totalPaid = realPayments.reduce((sum, p) => sum + p.amount, 0);
+  const remainingBalance = loanData.remainingBalance ?? (loanData.totalAmount - totalPaid);
+  
+  // Encontrar próxima cuota pendiente
+  const pendingPayment = amortizationPayments.find(p => p.status !== 'paid');
+  const nextPaymentDate = pendingPayment?.date;
+  const nextPaymentAmount = pendingPayment?.amount;
 
   return {
     id: loanData.id,
-    borrowerName: loanData.borrowerName || 'Cliente',
-    amount: loanData.amount ?? 0,
-    status: loanData.status || 'pending',
-    createdAt: loanData.createdAt instanceof Date ? loanData.createdAt.toISOString() : loanData.createdAt || new Date().toISOString(),
-    startDate: loanData.startDate instanceof Date ? loanData.startDate.toISOString() : loanData.startDate || new Date().toISOString(),
-    endDate: loanData.endDate instanceof Date ? loanData.endDate.toISOString() : loanData.endDate || new Date().toISOString(),
-    interestRate: loanData.interestRate ?? 0,
-    term: loanData.term ?? 0,
+    borrowerName: clientData ? `${clientData.firstName} ${clientData.lastName}` : loanData.borrowerName || 'Cliente',
+    amount: loanData.amount,
+    status: loanData.status,
+    startDate: loanData.startDate,
+    endDate: loanData.endDate,
+    interestRate: loanData.interestRate,
+    term: loanData.term,
     clientId: loanData.clientId,
-    clientEmail: loanData.clientEmail,
-    clientPhone: loanData.clientPhone,
-    clientAddress: loanData.clientAddress,
-    clientDocument: loanData.clientDocument,
-    loanType: loanData.loanType || 'formal',
-    loanTypeName: loanData.loanTypeName || 'Personal',
-    calculationMethod: loanData.calculationMethod || 'standard',
-    paymentFrequency: loanData.paymentFrequency || 'monthly',
+    clientEmail: clientData?.email,
+    clientPhone: clientData?.phone,
+    clientAddress: clientData?.address,
+    clientDocument: clientData?.documentNumber,
+    loanType: loanData.loanTypeCategory || (loanData.loanTypeId === 'san' ? 'san' : loanData.loanTypeId === 'informal' ? 'informal' : 'formal'),
+    loanTypeName: loanData.loanTypeName,
+    paymentFrequency: loanData.paymentFrequency,
     guarantorName: loanData.guarantorName,
     guarantorPhone: loanData.guarantorPhone,
-    guarantorDocument: loanData.guarantorDocument,
-    collateralType: loanData.collateralType,
-    collateralValue: loanData.collateralValue,
-    collateralDescription: loanData.collateralDescription,
+    guarantorDocument: loanData.guarantorId,
+    guaranteeType: loanData.guaranteeType,
+    guaranteeValue: loanData.guaranteeValue,
+    guaranteeDescription: loanData.guaranteeDescription,
     totalPaid,
-    remainingBalance,
+    remainingBalance: Math.max(remainingBalance, 0),
     nextPaymentDate,
     nextPaymentAmount,
-    daysLate,
-    lateFees: loanData.lateFees ?? 0,
-    payments,
+    daysLate: 0, // Calcular basado en fechas
+    lateFees: loanData.lateFee || 0,
+    payments: allPayments.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
     notes: loanData.notes,
-    createdBy: loanData.createdBy,
-    updatedAt: loanData.updatedAt || loanData.createdAt,
+    createdAt: loanData.createdAt,
+    updatedAt: loanData.updatedAt,
   };
 };
 
-// ─── PDF Generators (NUEVO) ─────────────────────────────────────────────────
+// ─── PDF Generators ───────────────────────────────────────────────────────────
 const generateLoanPDFHtml = (loan: ExtendedLoan) => {
   const progress = loan.totalPaid / (loan.totalPaid + loan.remainingBalance) * 100;
+  const progressPercent = isNaN(progress) ? 0 : progress;
   const statusColor = loan.status === 'active' ? '#059669' : loan.status === 'overdue' ? '#b91c1c' : '#0369a1';
   
   const paymentsRows = loan.payments.map(p => `
@@ -216,7 +231,7 @@ const generateLoanPDFHtml = (loan: ExtendedLoan) => {
       <td>${formatCurrency(p.amount)}</td>
       <td>${formatCurrency(p.principal)}</td>
       <td>${formatCurrency(p.interest)}</td>
-      <td>${p.status === 'paid' ? 'Pagado' : p.status === 'pending' ? 'Pendiente' : 'Atrasado'}</td>
+      <td>${p.status === 'paid' ? 'Pagado' : 'Pendiente'}</td>
     </tr>
   `).join('');
 
@@ -252,7 +267,7 @@ const generateLoanPDFHtml = (loan: ExtendedLoan) => {
     <div class="section-title">Resumen</div>
     <div class="row"><span class="label">Total Pagado:</span><span class="value" style="color: green;">${formatCurrency(loan.totalPaid)}</span></div>
     <div class="row"><span class="label">Saldo Pendiente:</span><span class="value" style="color: #e67e22;">${formatCurrency(loan.remainingBalance)}</span></div>
-    <div class="row"><span class="label">Progreso:</span><span class="value">${progress.toFixed(1)}%</span></div>
+    <div class="row"><span class="label">Progreso:</span><span class="value">${progressPercent.toFixed(1)}%</span></div>
   </div>
 
   <div class="section">
@@ -266,7 +281,7 @@ const generateLoanPDFHtml = (loan: ExtendedLoan) => {
     <div class="section-title">Detalles del Préstamo</div>
     <div class="row"><span class="label">Tipo:</span><span class="value">${loan.loanTypeName}</span></div>
     <div class="row"><span class="label">Tasa:</span><span class="value">${loan.interestRate}%</span></div>
-    <div class="row"><span class="label">Plazo:</span><span class="value">${loan.term} meses</span></div>
+    <div class="row"><span class="label">Plazo:</span><span class="value">${loan.term} ${loan.paymentFrequency === 'daily' ? 'días' : 'meses'}</span></div>
     <div class="row"><span class="label">Inicio/Fin:</span><span class="value">${formatDate(loan.startDate)} - ${formatDate(loan.endDate)}</span></div>
   </div>
 
@@ -279,22 +294,13 @@ const generateLoanPDFHtml = (loan: ExtendedLoan) => {
   </div>
 
   <div class="footer">
-    Generado por DomPresta App - ${configService.formatDate(new Date())}
+    Generado por DomPresta App - ${formatDate(new Date())}
   </div>
 </body>
 </html>`;
 };
 
 const generatePaymentReceiptHtml = (loan: ExtendedLoan, payment: LoanDetailPayment) => {
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'paid': return 'PAGADO';
-      case 'pending': return 'PENDIENTE';
-      case 'partial': return 'PARCIAL';
-      default: return status.toUpperCase();
-    }
-  };
-  
   return `
 <!DOCTYPE html>
 <html>
@@ -306,20 +312,19 @@ const generatePaymentReceiptHtml = (loan: ExtendedLoan, payment: LoanDetailPayme
     .receipt { border: 2px dashed #ccc; padding: 20px; max-width: 400px; margin: 0 auto; }
     .store-info { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 10px; }
     .store-name { font-size: 24px; font-weight: bold; margin: 0; }
-    .store-address { font-size: 12px; color: #666; }
     .title { text-align: center; font-size: 18px; font-weight: bold; margin: 15px 0; }
     .row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 14px; }
     .label { font-weight: bold; }
     .total { border-top: 2px solid #000; margin-top: 10px; padding-top: 10px; font-size: 18px; font-weight: bold; }
-    .status { background: #05966922; color: #059669; padding: 4px 8px; border-radius: 4px; font-weight: bold; }
-    .barcode { text-align: center; margin-top: 20px; font-family: 'Courier'; }
+    .status { background: #05966922; color: #059669; padding: 4px 8px; border-radius: 4px; font-weight: bold; display: inline-block; }
+    .footer { text-align: center; margin-top: 20px; font-size: 10px; color: #999; }
   </style>
 </head>
 <body>
   <div class="receipt">
     <div class="store-info">
       <h1 class="store-name">DOMPRESTA</h1>
-      <p class="store-address">Sistema de Gestión de Préstamos</p>
+      <p>Sistema de Gestión de Préstamos</p>
     </div>
     
     <div class="title">RECIBO DE PAGO</div>
@@ -333,29 +338,29 @@ const generatePaymentReceiptHtml = (loan: ExtendedLoan, payment: LoanDetailPayme
     <div class="row"><span class="label">Interés:</span><span>${formatCurrency(payment.interest)}</span></div>
     ${payment.lateFee ? `<div class="row"><span class="label">Mora:</span><span>${formatCurrency(payment.lateFee)}</span></div>` : ''}
     <div class="row total"><span class="label">TOTAL:</span><span>${formatCurrency(payment.amount)}</span></div>
-    <div class="row"><span class="label">Método:</span><span>${payment.paymentMethod || 'Efectivo'}</span></div>
-    <div class="row"><span class="label">Estado:</span><span class="status">${getStatusLabel(payment.status)}</span></div>
+    <div class="row"><span class="label">Método:</span><span>${payment.paymentMethod}</span></div>
+    <div class="row"><span class="label">Estado:</span><span class="status">PAGADO</span></div>
     <hr style="border-style: dashed;" />
     <div class="row"><span class="label">Saldo Pendiente:</span><span>${formatCurrency(loan.remainingBalance)}</span></div>
-    ${payment.notes ? `<p style="font-size: 12px; color: #666;">Nota: ${payment.notes}</p>` : ''}
     
-    <div class="barcode">
+    <div class="footer">
       <p>*** ${payment.id.toUpperCase()} ***</p>
-      <p style="font-size: 10px;">Gracias por su pago</p>
+      <p>Gracias por su pago</p>
+      <p>${formatDate(new Date())}</p>
     </div>
-    <p style="text-align: center; font-size: 10px; color: #999;">${configService.formatDate(new Date())} ${new Date().toLocaleTimeString(configService.get('locale'))}</p>
   </div>
 </body>
 </html>`;
 };
 
-// ─── Subcomponentes (Mantenidos del original) ─────────────────────────────────
+// ─── Subcomponentes ──────────────────────────────────────────────────────────
 const StatusBadge: React.FC<{ status: string; size?: 'sm' | 'md' | 'lg' }> = ({ status, size = 'md' }) => {
   const config: Record<string, { label: string; bg: string; color: string; dot: string }> = {
     active: { label: 'Activo', bg: C.successBg, color: C.successMid, dot: '#10b981' },
     pending: { label: 'Pendiente', bg: C.warningBg, color: C.warningMid, dot: '#f59e0b' },
     overdue: { label: 'Vencido', bg: C.dangerBg, color: C.dangerMid, dot: '#ef4444' },
-    completed: { label: 'Completado', bg: C.infoBg, color: C.infoMid, dot: '#0284c7' },
+    paid: { label: 'Pagado', bg: C.infoBg, color: C.infoMid, dot: '#0284c7' },
+    cancelled: { label: 'Cancelado', bg: C.brandFaint, color: C.textMuted, dot: '#9591a8' },
   };
   const cfg = config[status] ?? { label: status, bg: C.bg, color: C.textMuted, dot: C.textMuted };
   const sizes = { sm: { py: 4, px: 8, fontSize: 10 }, md: { py: 6, px: 12, fontSize: 12 }, lg: { py: 8, px: 16, fontSize: 14 } };
@@ -427,21 +432,17 @@ const PaymentItem: React.FC<{ payment: LoanDetailPayment; index: number; isSan?:
             </Text>
           </View>
           <View>
-            <Text style={payItemS.date}>{new Date(payment.date).toLocaleDateString(configService.get('locale'), { day: '2-digit', month: 'short' })}</Text>
+            <Text style={payItemS.date}>{new Date(payment.date).toLocaleDateString('es-DO', { day: '2-digit', month: 'short' })}</Text>
             {payment.notes && <Text style={payItemS.notes}>{payment.notes}</Text>}
           </View>
         </View>
         <View style={payItemS.right}>
           <Text style={payItemS.amount}>{formatCurrency(payment.amount)}</Text>
           <PaymentStatusBadge status={payment.status} />
-          {/* Botón para ver recibo - NUEVO */}
           {payment.status === 'paid' && (
             <TouchableOpacity 
               style={payItemS.receiptButton} 
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                onViewReceipt(payment);
-              }}
+              onPress={() => onViewReceipt(payment)}
             >
               <Ionicons name="receipt-outline" size={14} color={C.brandVibrant} />
               <Text style={payItemS.receiptText}>Ver Recibo</Text>
@@ -464,21 +465,21 @@ const payItemS = StyleSheet.create({
   notes: { fontSize: 10, color: C.textMuted, marginTop: 2 },
   right: { alignItems: 'flex-end', gap: 4 },
   amount: { fontSize: 14, fontWeight: '700', color: C.text },
-  // NUEVO ESTILO
   receiptButton: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 4 },
   receiptText: { fontSize: 10, fontWeight: '600', color: C.brandVibrant },
 });
 
 const ProgressCircle: React.FC<{ progress: number; size?: number }> = ({ progress, size = 120 }) => {
+  const validProgress = Math.min(Math.max(progress || 0, 0), 1);
   const radius = (size - 20) / 2;
   const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference * (1 - progress);
+  const strokeDashoffset = circumference * (1 - validProgress);
   
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
       <Circle cx={size / 2} cy={size / 2} r={radius} stroke={C.borderStrong} strokeWidth={10} fill="none" />
       <Circle cx={size / 2} cy={size / 2} r={radius} stroke={C.brandVibrant} strokeWidth={10} fill="none" strokeDasharray={circumference} strokeDashoffset={strokeDashoffset} strokeLinecap="round" transform={`rotate(-90 ${size / 2} ${size / 2})`} />
-      <SvgText x={size / 2} y={size / 2 - 5} textAnchor="middle" fontSize={size * 0.18} fontWeight="800" fill={C.text}>{Math.round(progress * 100)}%</SvgText>
+      <SvgText x={size / 2} y={size / 2 - 5} textAnchor="middle" fontSize={size * 0.18} fontWeight="800" fill={C.text}>{Math.round(validProgress * 100)}%</SvgText>
       <SvgText x={size / 2} y={size / 2 + 15} textAnchor="middle" fontSize={size * 0.08} fill={C.textMuted}>Pagado</SvgText>
     </Svg>
   );
@@ -535,33 +536,31 @@ const cardS = StyleSheet.create({
 
 const ActionButton: React.FC<{ icon: string; label: string; onPress: () => void; color?: string; filled?: boolean }> = ({ icon, label, onPress, color = C.brandVibrant, filled }) => (
   <TouchableOpacity
-    style={[actionS.btn, { backgroundColor: filled ? color : `${color}15`, borderColor: filled ? color : `${color}30` }]}
+    style={[actionBtnS.btn, { backgroundColor: filled ? color : `${color}15`, borderColor: filled ? color : `${color}30` }]}
     onPress={onPress}
     activeOpacity={0.78}
   >
     <Ionicons name={icon as any} size={18} color={filled ? '#fff' : color} />
-    <Text style={[actionS.text, { color: filled ? '#fff' : color }]}>{label}</Text>
+    <Text style={[actionBtnS.text, { color: filled ? '#fff' : color }]}>{label}</Text>
   </TouchableOpacity>
 );
 
-const actionS = StyleSheet.create({
+const actionBtnS = StyleSheet.create({
   btn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14, borderWidth: 1 },
   text: { fontSize: 14, fontWeight: '700' },
 });
 
-// ─── Datos Mock Mejorados (Se agregó paymentMethod a los pagos pagados) ──────────
-// ─── Datos del préstamo consultados desde la tabla de la base de datos ─────────────────────────────────
-
-// ─── Componente Principal (VERSIÓN MEJORADA) ─────────────────────────────────
+// ─── Componente Principal ─────────────────────────────────────────────────────
 export const LoanDetailsScreen: React.FC<LoanDetailsScreenProps> = ({ route, navigation }) => {
   const { loanId } = route.params;
+  const { getLoan } = useLoans();
+  const { getClient } = useClients();
   const [loan, setLoan] = useState<ExtendedLoan | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentNotes, setPaymentNotes] = useState('');
-  // NUEVO: Estado para el modal de recibo/desglose de pago
   const [selectedPayment, setSelectedPayment] = useState<LoanDetailPayment | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const scrollY = useRef(new RNAnimated.Value(0)).current;
@@ -573,17 +572,34 @@ export const LoanDetailsScreen: React.FC<LoanDetailsScreenProps> = ({ route, nav
 
   const loadLoanDetails = async () => {
     try {
-      const loanData = await DatabaseService.getLoanById(loanId);
+      setLoading(true);
+      console.log('🔍 Cargando préstamo:', loanId);
+      
+      const loanData = await getLoan(loanId);
+      
       if (!loanData) {
+        console.log('❌ Préstamo no encontrado');
         setLoan(null);
         Alert.alert('Error', 'No se encontraron los detalles del préstamo.');
         return;
       }
 
-      const extendedLoan = buildExtendedLoanFromDatabase(loanData);
+      console.log('✅ Préstamo encontrado:', loanData.id);
+      
+      // Obtener datos del cliente
+      let clientData = null;
+      if (loanData.clientId) {
+        clientData = await getClient(loanData.clientId);
+      }
+      
+      // Obtener pagos reales si existen (pendiente implementar paymentService)
+      const payments: any[] = [];
+      
+      const extendedLoan = mapToExtendedLoan(loanData, clientData, payments);
       setLoan(extendedLoan);
+      
     } catch (error) {
-      console.error('Error cargando préstamo:', error);
+      console.error('❌ Error cargando préstamo:', error);
       Alert.alert('Error', 'No se pudieron cargar los detalles del préstamo');
     } finally {
       setLoading(false);
@@ -597,7 +613,6 @@ export const LoanDetailsScreen: React.FC<LoanDetailsScreenProps> = ({ route, nav
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
-  // NUEVO: Función para generar y compartir/imprimir PDF del préstamo
   const handleExportLoanPDF = async () => {
     if (!loan) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -610,10 +625,8 @@ export const LoanDetailsScreen: React.FC<LoanDetailsScreenProps> = ({ route, nav
           await Sharing.shareAsync(uri, {
             mimeType: 'application/pdf',
             dialogTitle: 'Compartir o Imprimir Reporte de Préstamo',
-            UTI: 'public.pdf'
           });
         } else {
-          // Abre el diálogo de impresión nativo
           await Print.printAsync({ uri });
         }
       } else {
@@ -625,13 +638,11 @@ export const LoanDetailsScreen: React.FC<LoanDetailsScreenProps> = ({ route, nav
     }
   };
 
-  // NUEVO: Función para ver el desglose del recibo de pago
   const handleViewReceipt = (payment: LoanDetailPayment) => {
     setSelectedPayment(payment);
     setShowReceiptModal(true);
   };
 
-  // NUEVO: Función para compartir/imprimir el recibo de pago
   const handleSharePaymentReceipt = async () => {
     if (!loan || !selectedPayment) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -643,8 +654,7 @@ export const LoanDetailsScreen: React.FC<LoanDetailsScreenProps> = ({ route, nav
         if (await Sharing.isAvailableAsync()) {
           await Sharing.shareAsync(uri, {
             mimeType: 'application/pdf',
-            dialogTitle: `Recibo Pago #${selectedPayment.period} - ${loan.borrowerName}`,
-            UTI: 'public.pdf'
+            dialogTitle: `Recibo Pago #${selectedPayment.period}`,
           });
         } else {
           await Print.printAsync({ uri });
@@ -668,6 +678,7 @@ export const LoanDetailsScreen: React.FC<LoanDetailsScreenProps> = ({ route, nav
     setShowPaymentModal(false);
     setPaymentAmount('');
     setPaymentNotes('');
+    loadLoanDetails();
   };
 
   const progress = loan ? (loan.totalPaid / (loan.totalPaid + loan.remainingBalance)) : 0;
@@ -722,7 +733,6 @@ export const LoanDetailsScreen: React.FC<LoanDetailsScreenProps> = ({ route, nav
     <View style={s.root}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-      {/* Floating header */}
       <RNAnimated.View style={[s.floatNav, { opacity: navOpacity }]} pointerEvents="box-none">
         <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFillObject} />
         <View style={s.floatRow}>
@@ -742,7 +752,6 @@ export const LoanDetailsScreen: React.FC<LoanDetailsScreenProps> = ({ route, nav
         scrollEventThrottle={16}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={C.brandVibrant} colors={[C.brandVibrant]} />}
       >
-        {/* Header */}
         <LinearGradient colors={getHeaderColors()} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.header}>
           <View style={s.decCircle1} />
           <View style={s.decCircle2} />
@@ -770,7 +779,6 @@ export const LoanDetailsScreen: React.FC<LoanDetailsScreenProps> = ({ route, nav
         </LinearGradient>
 
         <View style={s.body}>
-          {/* Progress Section */}
           <Animated.View entering={FadeInDown.delay(150).springify()}>
             <Card style={s.progressCard}>
               <View style={s.progressRow}>
@@ -785,21 +793,11 @@ export const LoanDetailsScreen: React.FC<LoanDetailsScreenProps> = ({ route, nav
                     <Text style={s.progressStatLabel}>Pendiente</Text>
                     <Text style={[s.progressStatValue, { color: loan.status === 'overdue' ? C.dangerMid : C.warningMid }]}>{formatCurrency(loan.remainingBalance)}</Text>
                   </View>
-                  {loan.daysLate && loan.daysLate > 0 && (
-                    <>
-                      <View style={s.divider} />
-                      <View style={s.progressStat}>
-                        <Text style={s.progressStatLabel}>Atraso</Text>
-                        <Text style={[s.progressStatValue, { color: C.dangerMid }]}>{loan.daysLate} días</Text>
-                      </View>
-                    </>
-                  )}
                 </View>
               </View>
             </Card>
           </Animated.View>
 
-          {/* Next Payment */}
           {loan.nextPaymentDate && (
             <Animated.View entering={FadeInDown.delay(180).springify()}>
               <Card style={[s.nextPaymentCard, { backgroundColor: C.brandFaint, borderColor: C.brandPale }]}>
@@ -814,17 +812,10 @@ export const LoanDetailsScreen: React.FC<LoanDetailsScreenProps> = ({ route, nav
                   </View>
                   <Text style={s.nextPaymentAmount}>{formatCurrency(loan.nextPaymentAmount || 0)}</Text>
                 </View>
-                {loan.daysLate && loan.daysLate > 0 && (
-                  <View style={s.lateFeeWarning}>
-                    <Ionicons name="warning" size={14} color={C.dangerMid} />
-                    <Text style={s.lateFeeText}>Mora acumulada: {formatCurrency(loan.lateFees)}</Text>
-                  </View>
-                )}
               </Card>
             </Animated.View>
           )}
 
-          {/* Stats Row */}
           <Animated.View entering={FadeInDown.delay(210).springify()}>
             <View style={s.statsRow}>
               <StatCard label="Tasa" value={`${loan.interestRate}%`} icon="trending-up" color={C.brandVibrant} bg={C.brandFaint} />
@@ -835,7 +826,6 @@ export const LoanDetailsScreen: React.FC<LoanDetailsScreenProps> = ({ route, nav
             </View>
           </Animated.View>
 
-          {/* Client Information */}
           <SectionHeader title="Información del Cliente" icon="person-outline" />
           <Animated.View entering={FadeInDown.delay(240).springify()}>
             <Card>
@@ -846,20 +836,16 @@ export const LoanDetailsScreen: React.FC<LoanDetailsScreenProps> = ({ route, nav
             </Card>
           </Animated.View>
 
-          {/* Loan Details */}
           <SectionHeader title="Detalles del Préstamo" icon="document-text-outline" />
           <Animated.View entering={FadeInDown.delay(270).springify()}>
             <Card>
               <InfoRow icon="cash-outline" label="Tipo" value={loan.loanTypeName} highlight />
-              <InfoRow icon="calculator-outline" label="Cálculo" value={loan.calculationMethod === 'san' ? 'San (Interés sobre capital)' : loan.calculationMethod === 'flat' ? 'Interés plano' : 'Francés (Cuota fija)'} />
               <InfoRow icon="calendar-outline" label="Inicio" value={formatDate(loan.startDate)} />
               <InfoRow icon="calendar-outline" label="Fin" value={formatDate(loan.endDate)} />
-              <InfoRow icon="person-outline" label="Creado por" value={loan.createdBy || 'Sistema'} />
               <InfoRow icon="time-outline" label="Creado" value={formatDate(loan.createdAt)} />
             </Card>
           </Animated.View>
 
-          {/* Guarantor */}
           {loan.guarantorName && (
             <>
               <SectionHeader title="Codeudor" icon="people-outline" />
@@ -867,14 +853,12 @@ export const LoanDetailsScreen: React.FC<LoanDetailsScreenProps> = ({ route, nav
                 <Card>
                   <InfoRow icon="person-outline" label="Nombre" value={loan.guarantorName} />
                   <InfoRow icon="call-outline" label="Teléfono" value={loan.guarantorPhone || 'No especificado'} />
-                  <InfoRow icon="card-outline" label="Documento" value={loan.guarantorDocument || 'No especificado'} />
                 </Card>
               </Animated.View>
             </>
           )}
 
-          {/* Payment History */}
-          <SectionHeader title={isSan ? "Plan de Pagos Diarios" : "Historial de Pagos"} icon="receipt-outline" />
+          <SectionHeader title={isSan ? "Plan de Pagos" : "Historial de Pagos"} icon="receipt-outline" />
           <Animated.View entering={FadeInDown.delay(330).springify()}>
             <Card>
               {loan.payments.slice(0, 5).map((payment, index) => (
@@ -883,19 +867,17 @@ export const LoanDetailsScreen: React.FC<LoanDetailsScreenProps> = ({ route, nav
                   payment={payment} 
                   index={index} 
                   isSan={isSan} 
-                  onViewReceipt={handleViewReceipt} // NUEVO: Callback para ver recibo
+                  onViewReceipt={handleViewReceipt}
                 />
               ))}
-              {loan.payments.length > 5 && (
-                <TouchableOpacity style={s.viewAllBtn}>
-                  <Text style={s.viewAllText}>Ver todos los pagos ({loan.payments.length})</Text>
-                  <Ionicons name="chevron-forward" size={14} color={C.brandVibrant} />
-                </TouchableOpacity>
+              {loan.payments.length === 0 && (
+                <Text style={{ textAlign: 'center', color: C.textMuted, paddingVertical: 20 }}>
+                  No hay pagos registrados
+                </Text>
               )}
             </Card>
           </Animated.View>
 
-          {/* Notes */}
           {loan.notes && (
             <>
               <SectionHeader title="Notas" icon="create-outline" />
@@ -907,7 +889,6 @@ export const LoanDetailsScreen: React.FC<LoanDetailsScreenProps> = ({ route, nav
             </>
           )}
 
-          {/* Action Buttons */}
           <Animated.View entering={FadeInDown.delay(390).springify()} style={s.actionsContainer}>
             <ActionButton icon="create-outline" label="Editar" onPress={() => navigation.navigate('LoanForm' as any, { loanId })} color={C.brandVibrant} />
             <ActionButton icon="cash-outline" label="Registrar Pago" onPress={() => {
@@ -915,16 +896,6 @@ export const LoanDetailsScreen: React.FC<LoanDetailsScreenProps> = ({ route, nav
               setShowPaymentModal(true);
               setPaymentAmount(loan.nextPaymentAmount?.toString() || '');
             }} color={C.successMid} filled />
-          </Animated.View>
-
-          {/* NUEVO: Botón de exportar PDF del préstamo (versión móvil) */}
-          <Animated.View entering={FadeInDown.delay(420).springify()} style={{ marginTop: 12 }}>
-            <ActionButton 
-              icon="print-outline" 
-              label="Exportar PDF del Préstamo" 
-              onPress={handleExportLoanPDF}
-              color={C.infoMid}
-            />
           </Animated.View>
 
           <View style={{ height: 100 }} />
@@ -983,17 +954,11 @@ export const LoanDetailsScreen: React.FC<LoanDetailsScreenProps> = ({ route, nav
         </BlurView>
       </Modal>
 
-      {/* NUEVO: Modal de Recibo / Desglose de Pago */}
-      <Modal 
-        visible={showReceiptModal} 
-        transparent 
-        animationType="fade" 
-        onRequestClose={() => setShowReceiptModal(false)}
-      >
+      {/* Receipt Modal */}
+      <Modal visible={showReceiptModal} transparent animationType="fade" onRequestClose={() => setShowReceiptModal(false)}>
         <BlurView intensity={100} tint="dark" style={modalS.overlay}>
           {selectedPayment && loan && (
             <Animated.View entering={ZoomIn.duration(200)} style={modalS.content}>
-              {/* Encabezado del Recibo */}
               <View style={modalS.header}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Ionicons name="receipt" size={22} color={C.brandVibrant} />
@@ -1007,7 +972,6 @@ export const LoanDetailsScreen: React.FC<LoanDetailsScreenProps> = ({ route, nav
                 </TouchableOpacity>
               </View>
 
-              {/* Detalles del Pago */}
               <View style={modalS.body}>
                 <View style={receiptS.row}>
                   <Text style={receiptS.label}>Fecha de Pago</Text>
@@ -1028,31 +992,11 @@ export const LoanDetailsScreen: React.FC<LoanDetailsScreenProps> = ({ route, nav
                   <Text style={receiptS.label}>Interés</Text>
                   <Text style={receiptS.value}>{formatCurrency(selectedPayment.interest)}</Text>
                 </View>
-                {selectedPayment.lateFee ? (
-                  <View style={receiptS.row}>
-                    <Text style={[receiptS.label, { color: C.dangerMid }]}>Mora</Text>
-                    <Text style={[receiptS.value, { color: C.dangerMid }]}>{formatCurrency(selectedPayment.lateFee)}</Text>
-                  </View>
-                ) : null}
                 
                 <View style={[receiptS.row, { marginTop: 8, paddingTop: 12, borderTopWidth: 2, borderTopColor: C.borderStrong }]}>
                   <Text style={[receiptS.label, { fontSize: 16, fontWeight: '800' }]}>Total Pagado</Text>
                   <Text style={[receiptS.value, { fontSize: 18, fontWeight: '900', color: C.successMid }]}>{formatCurrency(selectedPayment.amount)}</Text>
                 </View>
-                
-                <View style={[receiptS.row, { marginTop: 8 }]}>
-                  <Text style={receiptS.label}>Estado</Text>
-                  <View style={[payBadgeS.container, { backgroundColor: C.successBg, alignSelf: 'flex-end' }]}>
-                    <Text style={[payBadgeS.text, { color: C.successMid }]}>PAGADO</Text>
-                  </View>
-                </View>
-                
-                {selectedPayment.notes ? (
-                  <View style={[receiptS.row, { flexDirection: 'column', alignItems: 'flex-start', gap: 4 }]}>
-                    <Text style={receiptS.label}>Notas</Text>
-                    <Text style={receiptS.value}>{selectedPayment.notes}</Text>
-                  </View>
-                ) : null}
                 
                 <View style={{ marginTop: 16, padding: 12, backgroundColor: C.brandFaint, borderRadius: 12 }}>
                   <View style={receiptS.row}>
@@ -1062,20 +1006,13 @@ export const LoanDetailsScreen: React.FC<LoanDetailsScreenProps> = ({ route, nav
                 </View>
               </View>
 
-              {/* Botones de Acción del Recibo */}
               <View style={modalS.footer}>
-                <TouchableOpacity 
-                  style={modalS.cancelBtn} 
-                  onPress={() => setShowReceiptModal(false)}
-                >
+                <TouchableOpacity style={modalS.cancelBtn} onPress={() => setShowReceiptModal(false)}>
                   <Text style={modalS.cancelText}>Cerrar</Text>
                 </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[modalS.confirmBtn, { backgroundColor: C.brandVibrant, flex: 2 }]} 
-                  onPress={handleSharePaymentReceipt}
-                >
+                <TouchableOpacity style={[modalS.confirmBtn, { backgroundColor: C.brandVibrant, flex: 2 }]} onPress={handleSharePaymentReceipt}>
                   <Ionicons name="share-outline" size={18} color="white" />
-                  <Text style={modalS.confirmText}>  Compartir / Imprimir Recibo</Text>
+                  <Text style={modalS.confirmText}>Compartir Recibo</Text>
                 </TouchableOpacity>
               </View>
             </Animated.View>
@@ -1086,7 +1023,7 @@ export const LoanDetailsScreen: React.FC<LoanDetailsScreenProps> = ({ route, nav
   );
 };
 
-// ─── Styles (Unificados) ──────────────────────────────────────────────────────
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
   floatNav: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 99, height: 94, paddingTop: 48, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.06)', overflow: 'hidden' },
@@ -1120,12 +1057,8 @@ const s = StyleSheet.create({
   nextPaymentDate: { fontSize: 17, fontWeight: '800', color: C.text },
   nextPaymentLabel: { fontSize: 11, color: C.textMuted, marginTop: 2 },
   nextPaymentAmount: { fontSize: 20, fontWeight: '900', color: C.brandVibrant },
-  lateFeeWarning: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: C.border },
-  lateFeeText: { fontSize: 12, fontWeight: '600', color: C.dangerMid },
   statsRow: { flexDirection: 'row', marginBottom: 8 },
   notes: { fontSize: 14, color: C.textSec, lineHeight: 20 },
-  viewAllBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 12, paddingTop: 8 },
-  viewAllText: { fontSize: 12, fontWeight: '600', color: C.brandVibrant },
   actionsContainer: { flexDirection: 'row', gap: 12, marginTop: 16 },
 });
 
@@ -1149,7 +1082,6 @@ const modalS = StyleSheet.create({
   confirmText: { fontSize: 14, fontWeight: '700', color: '#fff' },
 });
 
-// NUEVOS ESTILOS para el modal de recibo
 const receiptS = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   label: { fontSize: 13, color: C.textSec, fontWeight: '500' },

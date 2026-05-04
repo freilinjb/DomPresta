@@ -568,6 +568,7 @@ const cardS = StyleSheet.create({
 export const ClientsScreen: React.FC<ClientsScreenProps> = ({ navigation }) => {
     const { clients, loading, loadClients: refreshClients } = useClients();
 
+    console.log('ClientsScreen render', { clients, loading });
   // const [clients, setClients] = useState<Client[]>([]);
   // const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

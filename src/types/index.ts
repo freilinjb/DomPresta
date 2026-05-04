@@ -25,8 +25,8 @@ export interface Client {
 // ─── Tipos de Préstamo ─────────────────────────────────────────────
 export interface Loan {
   id: string;
-  borrowerName: string;
-  clientId?: string;
+  borrowerName?: string;
+  clientId: string;
   amount: number;
   interestRate?: number;
   term?: number;
@@ -40,6 +40,36 @@ export interface Loan {
   payments?: Payment[];
   createdAt: string | Date;
   updatedAt?: string | Date;
+  periodicPayment?: number;
+  totalAmount?: number;
+  totalInterest?: number;
+  loanTypeId?: string;
+  loanTypeName?: string;
+  loanTypeCategory?: string;
+  firstPaymentDate?: string;
+  cashBoxId?: string;
+  paymentMethodId?: string;
+  referenceCode?: string;
+  guarantorName?: string;
+  guarantorId?: string;
+  guarantorPhone?: string;
+  guarantorAddress?: string;
+  guaranteeType?: string;
+  guaranteeValue?: number;
+  guaranteeDescription?: string;
+  guaranteeFileNumber?: string;
+  guaranteeNotes?: string;
+  sanIncludeWeekends?: boolean;
+  sanFirstPaymentTomorrow?: boolean;
+  informalProfitPercentage?: number;
+  informalGracePeriod?: number;
+  informalLateFeePercentage?: number;
+  legalFees?: number;
+  lateFee?: number;
+  commission?: number;
+  insuranceAmount?: number;
+  initialPayment?: number;
+  notes?: string;
 }
 
 // ─── Tipos de Pago ─────────────────────────────────────────────────

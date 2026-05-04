@@ -14,6 +14,7 @@ import {
   Pressable,
   Modal,
   ScrollView,
+  ActivityIndicator
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -32,6 +33,7 @@ import { Loan } from '../../types';
 import { MainTabParamList } from '../../navigation/types';
 import { paymentService } from '../../services/paymentService';
 import { configService } from '../../services/configService';
+import { ReceiptModal } from '../../components/ReceiptModal';
 
 const { width } = Dimensions.get('window');
 
@@ -436,6 +438,10 @@ export const LoansScreen: React.FC<LoansScreenProps> = ({ navigation }) => {
   const [paymentNotes, setPaymentNotes] = useState('');
   const [showPaymentModal, setShowPaymentModal] = useState(false);
 
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+const [currentReceipt, setCurrentReceipt] = useState<any>(null);
+const [isPaying, setIsPaying] = useState(false);
+
   useEffect(() => {
     loadLoans();
     navigation.setOptions({ headerShown: false });
@@ -470,33 +476,51 @@ export const LoansScreen: React.FC<LoansScreenProps> = ({ navigation }) => {
   };
 
   const handleRegisterPayment = async () => {
-    if (!selectedLoan || !paymentAmount) return;
+  if (!selectedLoan || !paymentAmount) return;
 
-    try {
-      const amount = parseFloat(paymentAmount);
-      const payment = await paymentService.create({
-        loanId: selectedLoan.id,
-        clientId: selectedLoan.clientId || '',
-        amount,
-        paymentDate: new Date().toISOString().split('T')[0],
-        paymentMethod,
-        notes: paymentNotes,
-      });
-
-      // Generar recibo
-      const receipt = await paymentService.generateReceipt(payment.id);
-
-      // Mostrar recibo en alerta o algo
-      Alert.alert('✅ Pago Registrado', `Monto: ${receipt.payment.amount}\nRecibo: ${receipt.receiptNumber}`);
-
-      setShowPaymentModal(false);
-      setPaymentAmount('');
-      setPaymentNotes('');
-      loadLoans(); // Recargar préstamos
-    } catch (error) {
-      Alert.alert('Error', 'No se pudo registrar el pago');
+  setIsPaying(true);
+  try {
+    const amount = parseFloat(paymentAmount);
+    
+    // Validar que el monto no sea mayor al saldo pendiente
+    if (amount > (selectedLoan.remainingBalance || selectedLoan.totalAmount || selectedLoan.amount)) {
+      Alert.alert('Error', 'El monto del pago no puede ser mayor al saldo pendiente');
+      return;
     }
-  };
+
+    // Crear el pago
+    const payment = await paymentService.create({
+      loanId: selectedLoan.id,
+      clientId: selectedLoan.clientId,
+      amount,
+      paymentDate: new Date().toISOString().split('T')[0],
+      paymentMethod,
+      notes: paymentNotes,
+    });
+
+    // Generar recibo
+    const receipt = await paymentService.generateReceipt(payment.id);
+    setCurrentReceipt(receipt);
+    
+    // Cerrar modal de pago y abrir modal de recibo
+    setShowPaymentModal(false);
+    setShowReceiptModal(true);
+    
+    // Limpiar formulario
+    setPaymentAmount('');
+    setPaymentNotes('');
+    
+    // Recargar préstamos para actualizar la información
+    await loadLoans();
+    
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  } catch (error: any) {
+    console.error('Error al registrar pago:', error);
+    Alert.alert('Error', error.message || 'No se pudo registrar el pago');
+  } finally {
+    setIsPaying(false);
+  }
+};
 
   const filteredAndSorted = useMemo(() => {
     let filtered = [...loans];
@@ -688,6 +712,15 @@ export const LoansScreen: React.FC<LoansScreenProps> = ({ navigation }) => {
 
       <SortModal visible={showSortModal} onClose={() => setShowSortModal(false)} currentSort={sortType} onSelect={setSortType} />
 
+          {/* Receipt Modal */}
+<ReceiptModal
+  visible={showReceiptModal}
+  receipt={currentReceipt}
+  onClose={() => {
+    setShowReceiptModal(false);
+    setCurrentReceipt(null);
+  }}
+/>
       {/* Payment Modal */}
       <Modal visible={showPaymentModal} transparent animationType="fade" onRequestClose={() => setShowPaymentModal(false)}>
         <Pressable style={modalS.overlay} onPress={() => setShowPaymentModal(false)}>
@@ -725,13 +758,25 @@ export const LoansScreen: React.FC<LoansScreenProps> = ({ navigation }) => {
               </ScrollView>
             )}
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
-              <TouchableOpacity style={[modalS.row, { backgroundColor: C.surface, flex: 1 }]} onPress={() => setShowPaymentModal(false)}>
-                <Text style={[modalS.rowLabel, { color: C.textSec }]}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[modalS.row, { backgroundColor: C.brandVibrant, flex: 1 }]} onPress={handleRegisterPayment}>
-                <Text style={[modalS.rowLabel, { color: '#fff' }]}>Registrar Pago</Text>
-              </TouchableOpacity>
-            </View>
+  <TouchableOpacity 
+    style={[modalS.row, { backgroundColor: C.surface, flex: 1 }]} 
+    onPress={() => setShowPaymentModal(false)}
+    disabled={isPaying}
+  >
+    <Text style={[modalS.rowLabel, { color: C.textSec }]}>Cancelar</Text>
+  </TouchableOpacity>
+  <TouchableOpacity 
+    style={[modalS.row, { backgroundColor: C.brandVibrant, flex: 1 }]} 
+    onPress={handleRegisterPayment}
+    disabled={isPaying}
+  >
+    {isPaying ? (
+      <ActivityIndicator color="#fff" size="small" />
+    ) : (
+      <Text style={[modalS.rowLabel, { color: '#fff' }]}>Registrar Pago</Text>
+    )}
+  </TouchableOpacity>
+</View>
           </Animated.View>
         </Pressable>
       </Modal>

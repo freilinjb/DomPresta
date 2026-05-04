@@ -202,10 +202,9 @@ class LoanService {
       const loans = await db.getAllAsync<any>(
         `SELECT 
           l.*,
-          c.*,
           c.firstName || ' ' || c.lastName as borrowerName
         FROM loans l
-        LEFT JOIN clients c ON l.clientId = c.id
+        INNER JOIN clients c ON l.clientId = c.id
         ORDER BY l.createdAt DESC`
       );
       
@@ -325,6 +324,7 @@ class LoanService {
     return {
       id: row.id,
       clientId: row.clientId,
+      borrowerName: row.borrowerName, 
       loanTypeId: row.loanTypeId,
       loanTypeName: row.loanTypeName,
       loanTypeCategory: row.loanTypeCategory,
