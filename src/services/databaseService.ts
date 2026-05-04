@@ -71,6 +71,21 @@ export class DatabaseService {
     return row ?? null;
   }
 
+  static updateUser(id: string, updates: Partial<{ name: string; email: string; password: string; role: 'admin' | 'user' }>): void {
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    if (updates.name !== undefined) { fields.push('name = ?'); values.push(updates.name); }
+    if (updates.email !== undefined) { fields.push('email = ?'); values.push(updates.email); }
+    if (updates.password !== undefined) { fields.push('password = ?'); values.push(updates.password); }
+    if (updates.role !== undefined) { fields.push('role = ?'); values.push(updates.role); }
+
+    if (fields.length === 0) return;
+
+    values.push(id);
+    db.runSync(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`, values);
+  }
+
   static async getCurrentUser(): Promise<User | null> {
     try {
       const userId = await AsyncStorage.getItem('currentUserId');

@@ -23,6 +23,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthService } from '../../services/authService';
+import { DatabaseService } from '../../services/databaseService';
 import { MainTabParamList, RootStackParamList } from '../../navigation/types';
 
 // ─── Design System (idéntico al resto de la app) ──────────────────────────────
@@ -364,7 +365,53 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     setEditModal({ visible: true, title, value, onSave, kb, multi });
   };
 
-  // ── Header hamburger ──────────────────────────────────────────────────────────
+  const loadSettingsFromDb = () => {
+    const settingOrDefault = (key: string, fallback: string) => DatabaseService.getSetting(key) ?? fallback;
+    setUserPhone(DatabaseService.getSetting('profile_phone') ?? userPhone);
+
+    setCompanyName(settingOrDefault('companyName', companyName));
+    setCompanyRNC(settingOrDefault('companyRNC', companyRNC));
+    setCompanyPhone(settingOrDefault('companyPhone', companyPhone));
+    setCompanyAddress(settingOrDefault('companyAddress', companyAddress));
+    setCompanyEmail(settingOrDefault('companyEmail', companyEmail));
+    setCompanySlogan(settingOrDefault('companySlogan', companySlogan));
+
+    const savedCurrencyCode = DatabaseService.getSetting('currencyCode');
+    const savedCurrencySymbol = DatabaseService.getSetting('currency');
+    const matchedCurrency = CURRENCIES.find((item) => item.code === savedCurrencyCode)
+      || CURRENCIES.find((item) => item.symbol === savedCurrencySymbol)
+      || CURRENCIES[0];
+    setCurrency(matchedCurrency);
+
+    setDecimalSep(DatabaseService.getSetting('decimalSep') ?? decimalSep);
+    setThousandSep(DatabaseService.getSetting('thousandSep') ?? thousandSep);
+    setSymbolPosition((DatabaseService.getSetting('symbolPosition') as 'izq' | 'der') ?? symbolPosition);
+    setDateFormat(DatabaseService.getSetting('dateFormat') ?? dateFormat);
+
+    setDefaultAmount(Number(DatabaseService.getSetting('defaultAmount') ?? defaultAmount));
+    setDefaultTerm(Number(DatabaseService.getSetting('defaultTerm') ?? defaultTerm));
+    setDefaultRate(Number(DatabaseService.getSetting('defaultRate') ?? defaultRate));
+    setMinAmount(Number(DatabaseService.getSetting('minAmount') ?? minAmount));
+    setMaxAmount(Number(DatabaseService.getSetting('maxAmount') ?? maxAmount));
+    setPayFreq(DatabaseService.getSetting('payFreq') ?? payFreq);
+    setInterestType(DatabaseService.getSetting('interestType') ?? interestType);
+    setPenaltyType(DatabaseService.getSetting('penaltyType') ?? penaltyType);
+    setPenaltyRate(Number(DatabaseService.getSetting('penaltyRate') ?? penaltyRate));
+    setGraceDays(Number(DatabaseService.getSetting('graceDays') ?? graceDays));
+    setAutoCalcInterest((DatabaseService.getSetting('autoCalcInterest') ?? (autoCalcInterest ? '1' : '0')) === '1');
+    setAllowPartial((DatabaseService.getSetting('allowPartial') ?? (allowPartial ? '1' : '0')) === '1');
+    setRequireGuarantor((DatabaseService.getSetting('requireGuarantor') ?? (requireGuarantor ? '1' : '0')) === '1');
+
+    setTicketFooter(DatabaseService.getSetting('ticketFooter') ?? ticketFooter);
+    setShowLogo((DatabaseService.getSetting('showLogo') ?? (showLogo ? '1' : '0')) === '1');
+    setShowRNC((DatabaseService.getSetting('showRNC') ?? (showRNC ? '1' : '0')) === '1');
+    setShowBalance((DatabaseService.getSetting('showBalance') ?? (showBalance ? '1' : '0')) === '1');
+    setShowSignature((DatabaseService.getSetting('showSignature') ?? (showSignature ? '1' : '0')) === '1');
+    setCopies(Number(DatabaseService.getSetting('copies') ?? copies));
+    setPaperSize(DatabaseService.getSetting('paperSize') ?? paperSize);
+    setAutoPrint((DatabaseService.getSetting('autoPrint') ?? (autoPrint ? '1' : '0')) === '1');
+  };
+
   useEffect(() => {
     navigation.setOptions({
       headerLeft: () => (
@@ -375,6 +422,16 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         </TouchableOpacity>
       ),
     });
+
+    const initialize = async () => {
+      const currentUser = await AuthService.getCurrentUser();
+      if (currentUser) {
+        setUserName(currentUser.name || userName);
+        setUserEmail(currentUser.email || userEmail);
+      }
+      loadSettingsFromDb();
+    };
+    initialize();
   }, [navigation]);
 
   const handleLogout = () => {
@@ -391,9 +448,58 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     ]);
   };
 
-  const handleSaveAll = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert('✓ Configuración guardada', 'Todos los cambios fueron guardados correctamente.');
+  const handleSaveAll = async () => {
+    try {
+      const currentUser = await AuthService.getCurrentUser();
+      if (currentUser) {
+        DatabaseService.updateUser(currentUser.id, { name: userName, email: userEmail });
+      }
+      DatabaseService.setSetting('profile_phone', userPhone);
+
+      DatabaseService.setSetting('companyName', companyName);
+      DatabaseService.setSetting('companyRNC', companyRNC);
+      DatabaseService.setSetting('companyPhone', companyPhone);
+      DatabaseService.setSetting('companyAddress', companyAddress);
+      DatabaseService.setSetting('companyEmail', companyEmail);
+      DatabaseService.setSetting('companySlogan', companySlogan);
+
+      DatabaseService.setSetting('currency', currency.symbol);
+      DatabaseService.setSetting('currencyCode', currency.code);
+      DatabaseService.setSetting('decimalSep', decimalSep);
+      DatabaseService.setSetting('thousandSep', thousandSep);
+      DatabaseService.setSetting('symbolPosition', symbolPosition);
+      DatabaseService.setSetting('dateFormat', dateFormat);
+
+      DatabaseService.setSetting('defaultAmount', defaultAmount.toString());
+      DatabaseService.setSetting('defaultTerm', defaultTerm.toString());
+      DatabaseService.setSetting('defaultRate', defaultRate.toString());
+      DatabaseService.setSetting('minAmount', minAmount.toString());
+      DatabaseService.setSetting('maxAmount', maxAmount.toString());
+      DatabaseService.setSetting('payFreq', payFreq);
+      DatabaseService.setSetting('interestType', interestType);
+      DatabaseService.setSetting('penaltyType', penaltyType);
+      DatabaseService.setSetting('penaltyRate', penaltyRate.toString());
+      DatabaseService.setSetting('graceDays', graceDays.toString());
+      DatabaseService.setSetting('autoCalcInterest', autoCalcInterest ? '1' : '0');
+      DatabaseService.setSetting('allowPartial', allowPartial ? '1' : '0');
+      DatabaseService.setSetting('requireGuarantor', requireGuarantor ? '1' : '0');
+
+      DatabaseService.setSetting('ticketFooter', ticketFooter);
+      DatabaseService.setSetting('showLogo', showLogo ? '1' : '0');
+      DatabaseService.setSetting('showRNC', showRNC ? '1' : '0');
+      DatabaseService.setSetting('showBalance', showBalance ? '1' : '0');
+      DatabaseService.setSetting('showSignature', showSignature ? '1' : '0');
+      DatabaseService.setSetting('copies', copies.toString());
+      DatabaseService.setSetting('paperSize', paperSize);
+      DatabaseService.setSetting('autoPrint', autoPrint ? '1' : '0');
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('✓ Configuración guardada', 'Todos los cambios fueron guardados correctamente.');
+    } catch (error) {
+      console.error('Error guardando perfil:', error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Error', 'No se pudo guardar la configuración.');
+    }
   };
 
   // ─── initials ──────────────────────────────────────────────────────────────
