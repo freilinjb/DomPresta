@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -26,6 +26,11 @@ import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import { RootStackParamList } from '../../navigation/types';
+import { configService } from '../../services/configService';
+import { loanService, LoanInput } from '../../services/loanService';
+import { clientService, ClientInput } from '../../services/clientService';
+import { useClients } from '../../hooks/useClients';
+import { initDatabase } from '../../database/db';
 
 const { width: SW } = Dimensions.get('window');
 
@@ -84,14 +89,8 @@ interface FormData {
   notes: string; notifyWhenApproved: boolean; notifyWhenRejected: boolean;
 }
 
-const MOCK_CLIENTS: ClientOption[] = [
-  { id: '1', name: 'Juan Rodríguez Méndez', phone: '809-555-1234', email: 'juan@email.com', documentId: '402-1234567-8' },
-  { id: '2', name: 'María Pérez González', phone: '829-555-2345', email: 'maria@email.com', documentId: '402-8765432-1' },
-  { id: '3', name: 'Carlos García López', phone: '809-555-3456', email: 'carlos@email.com', documentId: '402-3456789-0' },
-  { id: '4', name: 'Ana Martínez Ruiz', phone: '829-555-4567', email: 'ana@email.com', documentId: '402-9876543-2' },
-];
-
-const MOCK_LOAN_TYPES: LoanTypeOption[] = [
+// Tipos de préstamo desde configuración o base de datos
+const LOAN_TYPES: LoanTypeOption[] = [
   { id: '1', name: 'Personal', category: 'formal', minAmount: 5000, maxAmount: 500000, defaultTerm: 12, defaultInterest: 12, icon: 'person-outline' },
   { id: '2', name: 'San Tradicional', category: 'san', minAmount: 1000, maxAmount: 100000, defaultTerm: 30, defaultInterest: 20, icon: 'people-outline' },
   { id: '3', name: 'Microcrédito', category: 'informal', minAmount: 500, maxAmount: 25000, defaultTerm: 12, defaultInterest: 15, icon: 'leaf-outline' },
@@ -127,7 +126,7 @@ const AVATAR_PALETTES: [string, string][] = [
 
 const fmtCurrency = (v: string) => {
   const n = parseFloat(v) || 0;
-  return `RD$${n.toLocaleString('es-DO', { minimumFractionDigits: 2 })}`;
+  return `${configService.get('currency') || 'RD$'}${n.toLocaleString('es-DO', { minimumFractionDigits: 2 })}`;
 };
 
 // ─── Field Input ──────────────────────────────────────────────────
@@ -319,7 +318,7 @@ const toggleS = StyleSheet.create({
 const LoanTypeGrid: React.FC<{ value: string; onSelect: (id: string) => void; error?: string }> = ({ value, onSelect, error }) => (
   <View>
     <View style={ltS.grid}>
-      {MOCK_LOAN_TYPES.map(t => {
+      {LOAN_TYPES.map(t => {
         const active = value === t.id;
         return (
           <TouchableOpacity key={t.id} style={[ltS.card, active && ltS.cardActive]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onSelect(t.id); }} activeOpacity={0.75}>
@@ -380,12 +379,12 @@ const LoanInfoBanner: React.FC<{ type: LoanTypeOption }> = ({ type }) => (
     <View style={bannerS.row}>
       <View style={bannerS.item}>
         <Text style={bannerS.key}>Mín.</Text>
-        <Text style={bannerS.val}>RD${type.minAmount.toLocaleString()}</Text>
+        <Text style={bannerS.val}>{configService.get('currency') || 'RD$'}{type.minAmount.toLocaleString()}</Text>
       </View>
       <View style={bannerS.div} />
       <View style={bannerS.item}>
         <Text style={bannerS.key}>Máx.</Text>
-        <Text style={bannerS.val}>RD${type.maxAmount.toLocaleString()}</Text>
+        <Text style={bannerS.val}>{configService.get('currency') || 'RD$'}{type.maxAmount.toLocaleString()}</Text>
       </View>
       <View style={bannerS.div} />
       <View style={bannerS.item}>
@@ -453,12 +452,12 @@ const sumS = StyleSheet.create({
   valBold: { fontSize: 16, fontWeight: '900', color: '#fff' },
 });
 
-// ─── Client Modal ─────────────────────────────────────────────────
+// ─── Client Modal (con datos reales) ─────────────────────────────────
 const ClientModal: React.FC<{
   visible: boolean; onClose: () => void;
   onSelect: (c: ClientOption) => void; onNewClient: () => void;
-  selectedId?: string;
-}> = ({ visible, onClose, onSelect, onNewClient, selectedId }) => (
+  selectedId?: string; clients: ClientOption[];
+}> = ({ visible, onClose, onSelect, onNewClient, selectedId, clients }) => (
   <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
     <View style={cliS.overlay}>
       <TouchableOpacity style={StyleSheet.absoluteFillObject} onPress={onClose} />
@@ -472,7 +471,7 @@ const ClientModal: React.FC<{
         </View>
 
         <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
-          {MOCK_CLIENTS.map((c, i) => {
+          {clients.map((c, i) => {
             const [col1, col2] = AVATAR_PALETTES[i % AVATAR_PALETTES.length];
             const initials = c.name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
             const active = selectedId === c.id;
@@ -547,7 +546,10 @@ export const LoanRequestFormScreen: React.FC<LoanRequestFormScreenProps> = ({ ro
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showClientModal, setShowClientModal] = useState(false);
+  const [clientsOptions, setClientsOptions] = useState<ClientOption[]>([]);
   const scrollY = useRef(new RNAnimated.Value(0)).current;
+
+  const { clients, loadClients, createClient } = useClients();
 
   const [sections, setSections] = useState({
     client: true, loan: true, financial: false, guarantor: false, collateral: false, additional: false,
@@ -564,6 +566,33 @@ export const LoanRequestFormScreen: React.FC<LoanRequestFormScreenProps> = ({ ro
 
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
 
+  // Inicializar base de datos y cargar clientes
+  useEffect(() => {
+    const init = async () => {
+      try {
+        await initDatabase();
+        await loadClients();
+      } catch (error) {
+        console.error('Error inicializando:', error);
+      }
+    };
+    init();
+  }, []);
+
+  // Convertir clientes reales a ClientOption
+  useEffect(() => {
+    if (clients && clients.length > 0) {
+      const options = clients.map(c => ({
+        id: c.id,
+        name: `${c.firstName} ${c.lastName}`,
+        phone: c.phone,
+        email: c.email,
+        documentId: c.documentNumber,
+      }));
+      setClientsOptions(options);
+    }
+  }, [clients]);
+
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
     if (requestId) loadRequest();
@@ -571,17 +600,26 @@ export const LoanRequestFormScreen: React.FC<LoanRequestFormScreenProps> = ({ ro
 
   const loadRequest = async () => {
     setLoading(true);
-    await new Promise(r => setTimeout(r, 800));
-    setForm(prev => ({
-      ...prev, clientId: '1', clientName: 'Juan Rodríguez Méndez', clientPhone: '809-555-1234',
-      clientEmail: 'juan@email.com', clientDocument: '402-1234567-8', loanType: '2',
-      amount: '15000', term: '30', purpose: 'Capital de trabajo para negocio', priority: 'high',
-      monthlyIncome: '45000', employmentStatus: 'self_employed', employer: 'Negocio propio',
-      yearsEmployed: '5', hasGuarantor: true, guarantorName: 'María Pérez',
-      guarantorPhone: '809-555-5678', guarantorRelationship: 'Hermana',
-      notes: 'Cliente VIP, buen historial',
-    }));
-    setLoading(false);
+    try {
+      const loan = await loanService.getById(requestId);
+      if (loan) {
+        setForm(prev => ({
+          ...prev,
+          clientId: loan.clientId,
+          clientName: loan.borrowerName || '',
+          loanType: loan.loanTypeId,
+          amount: loan.amount.toString(),
+          term: loan.term.toString(),
+          purpose: loan.notes || '',
+          notes: loan.notes || '',
+        }));
+      }
+    } catch (error) {
+      console.error('Error cargando solicitud:', error);
+      Alert.alert('Error', 'No se pudo cargar la solicitud');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const set = <K extends keyof FormData>(key: K, value: FormData[K]) => {
@@ -595,16 +633,52 @@ export const LoanRequestFormScreen: React.FC<LoanRequestFormScreenProps> = ({ ro
   };
 
   const handleLoanType = (id: string) => {
-    const t = MOCK_LOAN_TYPES.find(x => x.id === id);
+    const t = LOAN_TYPES.find(x => x.id === id);
     setForm(prev => ({ ...prev, loanType: id, term: t ? t.defaultTerm.toString() : prev.term }));
     if (errors.loanType) setErrors(prev => ({ ...prev, loanType: undefined }));
   };
 
   const handleSelectClient = (c: ClientOption) => {
-    setForm(prev => ({ ...prev, clientId: c.id, clientName: c.name, clientPhone: c.phone, clientEmail: c.email || '', clientDocument: c.documentId || '', isNewClient: false }));
+    setForm(prev => ({ 
+      ...prev, 
+      clientId: c.id, 
+      clientName: c.name, 
+      clientPhone: c.phone, 
+      clientEmail: c.email || '', 
+      clientDocument: c.documentId || '', 
+      isNewClient: false 
+    }));
     setShowClientModal(false);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (errors.clientName) setErrors(prev => ({ ...prev, clientName: undefined }));
+  };
+
+  const createNewClient = async (): Promise<string | null> => {
+    try {
+      const newClient = await createClient({
+        firstName: form.clientName.split(' ')[0] || '',
+        lastName: form.clientName.split(' ').slice(1).join(' ') || '',
+        email: form.clientEmail,
+        phone: form.clientPhone,
+        documentType: 'cedula',
+        documentNumber: form.clientDocument,
+        monthlyIncome: parseFloat(form.monthlyIncome) || 0,
+        occupation: form.employmentStatus,
+        address: '',
+        city: '',
+        status: 'active',
+        totalLoans: 0,
+        activeLoans: 0,
+        totalAmount: 0,
+        lastContact: new Date().toISOString().split('T')[0],
+        creditScore: null,
+      });
+      return newClient.id;
+    } catch (error) {
+      console.error('Error creando cliente:', error);
+      Alert.alert('Error', 'No se pudo crear el cliente');
+      return null;
+    }
   };
 
   const validate = (): boolean => {
@@ -622,39 +696,85 @@ export const LoanRequestFormScreen: React.FC<LoanRequestFormScreenProps> = ({ ro
     return Object.keys(e).length === 0;
   };
 
+  const calculatePeriodicPayment = (amount: number, rate: number, term: number, frequency: string): number => {
+    // Fórmula de cuota fija
+    const monthlyRate = rate / 100 / 12;
+    if (monthlyRate === 0) return amount / term;
+    const payment = amount * (monthlyRate * Math.pow(1 + monthlyRate, term)) / (Math.pow(1 + monthlyRate, term) - 1);
+    return Math.round(payment * 100) / 100;
+  };
+
   const handleSubmit = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (!validate()) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      // Auto-expand sections with errors
-      const hasClientErr = errors.clientName || errors.clientPhone;
-      const hasLoanErr = errors.loanType || errors.amount || errors.term || errors.purpose;
-      const hasGuarantorErr = errors.guarantorName;
-      const hasCollateralErr = errors.collateralType;
-      setSections(prev => ({
-        ...prev,
-        client: hasClientErr ? true : prev.client,
-        loan: hasLoanErr ? true : prev.loan,
-        guarantor: hasGuarantorErr ? true : prev.guarantor,
-        collateral: hasCollateralErr ? true : prev.collateral,
-      }));
       Alert.alert('Campos incompletos', 'Revisa los campos marcados en rojo antes de continuar.');
       return;
     }
+
     setSaving(true);
     try {
-      await new Promise(r => setTimeout(r, 1400));
+      let clientId = form.clientId;
+      
+      // Crear cliente nuevo si es necesario
+      if (form.isNewClient) {
+        const newClientId = await createNewClient();
+        if (!newClientId) throw new Error('No se pudo crear el cliente');
+        clientId = newClientId;
+      }
+
+      const selectedLoanType = LOAN_TYPES.find(t => t.id === form.loanType);
+      if (!selectedLoanType) throw new Error('Tipo de préstamo inválido');
+
+      const amountNum = parseFloat(form.amount);
+      const termNum = parseInt(form.term);
+      const interestRate = selectedLoanType.defaultInterest;
+      
+      // Calcular pago periódico
+      const periodicPayment = calculatePeriodicPayment(amountNum, interestRate, termNum, 'monthly');
+      const totalInterest = periodicPayment * termNum - amountNum;
+      const totalAmount = amountNum + totalInterest;
+
+      const loanData: LoanInput = {
+        clientId,
+        loanTypeId: selectedLoanType.id,
+        loanTypeName: selectedLoanType.name,
+        loanTypeCategory: selectedLoanType.category,
+        amount: amountNum,
+        interestRate: interestRate,
+        term: termNum,
+        paymentFrequency: 'monthly',
+        startDate: new Date().toISOString().split('T')[0],
+        firstPaymentDate: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0],
+        periodicPayment: periodicPayment,
+        totalInterest: totalInterest,
+        totalAmount: totalAmount,
+        remainingBalance: totalAmount,
+        status: 'pending',
+        notes: form.purpose + (form.notes ? `\n\n${form.notes}` : ''),
+        guarantorName: form.hasGuarantor ? form.guarantorName : undefined,
+        guarantorPhone: form.hasGuarantor ? form.guarantorPhone : undefined,
+        guaranteeType: form.hasCollateral ? form.collateralType : undefined,
+        guaranteeValue: form.hasCollateral ? parseFloat(form.collateralValue) || 0 : undefined,
+        guaranteeDescription: form.hasCollateral ? form.collateralDescription : undefined,
+      };
+
+      await loanService.create(loanData);
+      
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('✅ Solicitud enviada', requestId ? 'La solicitud fue actualizada.' : 'La solicitud fue enviada para revisión.', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
-    } catch {
+    } catch (error) {
+      console.error('Error guardando:', error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Error', 'No se pudo procesar la solicitud. Intenta de nuevo.');
-    } finally { setSaving(false); }
+    } finally { 
+      setSaving(false); 
+    }
   };
 
-  const selectedLoanType = MOCK_LOAN_TYPES.find(t => t.id === form.loanType);
+  const selectedLoanType = LOAN_TYPES.find(t => t.id === form.loanType);
   const openSections = Object.values(sections).filter(Boolean).length;
 
   const navOpacity = scrollY.interpolate({ inputRange: [0, 70], outputRange: [0, 1], extrapolate: 'clamp' });
@@ -778,13 +898,13 @@ export const LoanRequestFormScreen: React.FC<LoanRequestFormScreenProps> = ({ ro
           </SectionCard>
 
           {/* ─── 2. Préstamo ─────────────────────────── */}
-          <SectionCard title="Detalles del préstamo" icon="cash-outline" expanded={sections.loan} onToggle={() => toggle('loan')} badge={form.amount ? fmtCurrency(form.amount).replace('RD$', '') : undefined} index={1}>
+          <SectionCard title="Detalles del préstamo" icon="cash-outline" expanded={sections.loan} onToggle={() => toggle('loan')} badge={form.amount ? fmtCurrency(form.amount).replace(configService.get('currency') || 'RD$', '') : undefined} index={1}>
             <Text style={s.subLabel}>Tipo de préstamo *</Text>
             <LoanTypeGrid value={form.loanType} onSelect={handleLoanType} error={errors.loanType} />
 
             {selectedLoanType && <LoanInfoBanner type={selectedLoanType} />}
 
-            <FieldInput label="Monto solicitado" value={form.amount} onChangeText={v => set('amount', v)} placeholder="Ej: 25000" keyboardType="numeric" prefix="RD$" icon="cash-outline" error={errors.amount} required helper={selectedLoanType ? `Límite: RD$${selectedLoanType.minAmount.toLocaleString()} – RD$${selectedLoanType.maxAmount.toLocaleString()}` : undefined} />
+            <FieldInput label="Monto solicitado" value={form.amount} onChangeText={v => set('amount', v)} placeholder="Ej: 25000" keyboardType="numeric" prefix={configService.get('currency') || 'RD$'} icon="cash-outline" error={errors.amount} required helper={selectedLoanType ? `Límite: ${configService.get('currency') || 'RD$'}${selectedLoanType.minAmount.toLocaleString()} – ${configService.get('currency') || 'RD$'}${selectedLoanType.maxAmount.toLocaleString()}` : undefined} />
             <FieldInput label={selectedLoanType?.category === 'san' ? 'Plazo (días)' : 'Plazo (meses)'} value={form.term} onChangeText={v => set('term', v)} placeholder={selectedLoanType?.category === 'san' ? 'Ej: 30' : 'Ej: 12'} keyboardType="numeric" icon="calendar-outline" error={errors.term} required />
             <FieldInput label="Propósito del préstamo" value={form.purpose} onChangeText={v => set('purpose', v)} placeholder="Describa el uso que dará al préstamo…" multiline numberOfLines={3} icon="create-outline" error={errors.purpose} required />
 
@@ -794,7 +914,7 @@ export const LoanRequestFormScreen: React.FC<LoanRequestFormScreenProps> = ({ ro
 
           {/* ─── 3. Información financiera ───────────── */}
           <SectionCard title="Información financiera" icon="trending-up-outline" expanded={sections.financial} onToggle={() => toggle('financial')} index={2}>
-            <FieldInput label="Ingreso mensual" value={form.monthlyIncome} onChangeText={v => set('monthlyIncome', v)} placeholder="Ej: 35000" keyboardType="numeric" prefix="RD$" icon="wallet-outline" helper="Ingreso neto mensual aproximado" />
+            <FieldInput label="Ingreso mensual" value={form.monthlyIncome} onChangeText={v => set('monthlyIncome', v)} placeholder="Ej: 35000" keyboardType="numeric" prefix={configService.get('currency') || 'RD$'} icon="wallet-outline" helper="Ingreso neto mensual aproximado" />
             <PickerField label="Situación laboral" value={form.employmentStatus} onValueChange={v => set('employmentStatus', v)} items={EMPLOYMENT_STATUS.map(e => ({ label: e.name, value: e.id }))} icon="briefcase-outline" placeholder="Seleccione situación" />
             <FieldInput label="Empleador / Negocio" value={form.employer} onChangeText={v => set('employer', v)} placeholder="Nombre del empleador o negocio" icon="business-outline" />
             <FieldInput label="Años en empleo actual" value={form.yearsEmployed} onChangeText={v => set('yearsEmployed', v)} placeholder="Ej: 3" keyboardType="numeric" icon="time-outline" />
@@ -824,7 +944,7 @@ export const LoanRequestFormScreen: React.FC<LoanRequestFormScreenProps> = ({ ro
               <Animated.View entering={FadeIn.duration(200)}>
                 <View style={s.divider} />
                 <PickerField label="Tipo de garantía" value={form.collateralType} onValueChange={v => set('collateralType', v)} items={COLLATERAL_TYPES.map(t => ({ label: t.name, value: t.id }))} icon="shield-outline" error={errors.collateralType} required placeholder="Seleccione tipo" />
-                <FieldInput label="Valor estimado" value={form.collateralValue} onChangeText={v => set('collateralValue', v)} placeholder="Valor de la garantía" keyboardType="numeric" prefix="RD$" icon="pricetag-outline" />
+                <FieldInput label="Valor estimado" value={form.collateralValue} onChangeText={v => set('collateralValue', v)} placeholder="Valor de la garantía" keyboardType="numeric" prefix={configService.get('currency') || 'RD$'} icon="pricetag-outline" />
                 <FieldInput label="Descripción" value={form.collateralDescription} onChangeText={v => set('collateralDescription', v)} placeholder="Describa el bien dado en garantía…" multiline numberOfLines={3} icon="document-text-outline" />
               </Animated.View>
             )}
@@ -865,7 +985,14 @@ export const LoanRequestFormScreen: React.FC<LoanRequestFormScreenProps> = ({ ro
         </View>
       </RNAnimated.ScrollView>
 
-      <ClientModal visible={showClientModal} onClose={() => setShowClientModal(false)} onSelect={handleSelectClient} onNewClient={() => { setShowClientModal(false); set('isNewClient', true); }} selectedId={form.clientId} />
+      <ClientModal 
+        visible={showClientModal} 
+        onClose={() => setShowClientModal(false)} 
+        onSelect={handleSelectClient} 
+        onNewClient={() => { setShowClientModal(false); set('isNewClient', true); }} 
+        selectedId={form.clientId}
+        clients={clientsOptions}
+      />
     </KeyboardAvoidingView>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -19,7 +19,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import Animated, {
   FadeInDown,
-  FadeInUp,
   SlideInRight,
   ZoomIn,
   Layout,
@@ -29,61 +28,54 @@ import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { MainTabParamList } from '../../navigation/types';
 import { configService } from '../../services/configService';
+import { loanService } from '../../services/loanService';
+import { clientService } from '../../services/clientService';
+import { useLoans } from '../../hooks/useLoans';
+import { useClients } from '../../hooks/useClients';
+import { initDatabase } from '../../database/db';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // ─── Design Tokens ──────────────────────────────────────────────────
 const C = {
-  // Brand
   brand: '#1a0533',
   brandMid: '#3d0f7a',
   brandVibrant: '#6d28d9',
   brandLight: '#8b5cf6',
   brandPale: '#ede9fe',
   brandFaint: '#f5f3ff',
-
-  // Neutrals
   bg: '#f8f7fc',
   surface: '#ffffff',
   surfaceHover: '#faf9ff',
   border: 'rgba(109,40,217,0.08)',
   borderStrong: 'rgba(109,40,217,0.15)',
-
-  // Text
   text: '#0f0a1e',
   textSec: '#4a4560',
   textMuted: '#9591a8',
   textPlaceholder: '#b5b0c8',
-
-  // Semantic
   success: '#059669',
   successMid: '#10b981',
   successBg: '#ecfdf5',
   successBorder: 'rgba(5,150,105,0.15)',
-
   warning: '#b45309',
   warningMid: '#d97706',
   warningBg: '#fffbeb',
   warningBorder: 'rgba(180,83,9,0.15)',
-
   danger: '#b91c1c',
   dangerMid: '#dc2626',
   dangerBg: '#fef2f2',
   dangerBorder: 'rgba(185,28,28,0.15)',
-
   review: '#0369a1',
   reviewMid: '#0284c7',
   reviewBg: '#f0f9ff',
   reviewBorder: 'rgba(3,105,161,0.15)',
-
-  // Misc
-  gold: '#f59e0b',
   shadow: 'rgba(109,40,217,0.12)',
 };
 
 type LoanRequestsScreenNavigationProp = StackNavigationProp<MainTabParamList, 'LoanRequests'>;
 interface LoanRequestsScreenProps { navigation: LoanRequestsScreenNavigationProp; }
 
+// Interfaz para la solicitud de préstamo (adaptada de Loan)
 interface LoanRequest {
   id: string;
   clientName: string;
@@ -92,7 +84,7 @@ interface LoanRequest {
   amount: number;
   term: number;
   purpose: string;
-  status: 'pending' | 'approved' | 'rejected' | 'under_review';
+  status: 'pending' | 'approved' | 'rejected' | 'under_review' | 'active' | 'paid' | 'overdue' | 'cancelled';
   priority: 'high' | 'medium' | 'low';
   createdAt: string;
   reviewedBy?: string;
@@ -100,23 +92,11 @@ interface LoanRequest {
   notes?: string;
   creditScore?: number;
   monthlyIncome?: number;
+  clientId?: string;
 }
 
-type FilterType = 'all' | 'pending' | 'approved' | 'rejected' | 'under_review';
+type FilterType = 'all' | 'pending' | 'approved' | 'rejected' | 'under_review' | 'active';
 type SortType = 'recent' | 'amount_high' | 'amount_low' | 'priority';
-
-const MOCK_REQUESTS: LoanRequest[] = [
-  { id: 'REQ-001', clientName: 'Juan Rodríguez Méndez', clientPhone: '809-555-1234', clientEmail: 'juan.rodriguez@email.com', amount: 15750.50, term: 6, purpose: 'Compra de electrodomésticos', status: 'pending', priority: 'high', createdAt: '2026-04-15', creditScore: 720, monthlyIncome: 45000 },
-  { id: 'REQ-002', clientName: 'María Pérez González', clientPhone: '829-555-2345', clientEmail: 'maria.perez@email.com', amount: 8250.00, term: 30, purpose: 'Capital de trabajo', status: 'under_review', priority: 'medium', createdAt: '2026-04-14', creditScore: 680, monthlyIncome: 35000 },
-  { id: 'REQ-003', clientName: 'Carlos García López', clientPhone: '809-555-3456', amount: 22300.75, term: 12, purpose: 'Reparación de vehículo', status: 'approved', priority: 'medium', createdAt: '2026-04-10', reviewedBy: 'Ana Martínez', reviewedAt: '2026-04-12', creditScore: 650, monthlyIncome: 65000 },
-  { id: 'REQ-004', clientName: 'Ana Martínez Ruiz', clientPhone: '829-555-4567', clientEmail: 'ana.martinez@email.com', amount: 12500.00, term: 8, purpose: 'Gastos médicos', status: 'pending', priority: 'high', createdAt: '2026-04-16', creditScore: 800, monthlyIncome: 28000 },
-  { id: 'REQ-005', clientName: 'Roberto Fernández Marte', clientPhone: '809-555-5678', amount: 18750.25, term: 10, purpose: 'Matrícula universitaria', status: 'rejected', priority: 'low', createdAt: '2026-04-05', reviewedBy: 'Carlos Méndez', reviewedAt: '2026-04-08', notes: 'Score crediticio insuficiente', creditScore: 520, monthlyIncome: 85000 },
-  { id: 'REQ-006', clientName: 'Luisa Hernández Díaz', clientPhone: '829-555-6789', clientEmail: 'luisa.hernandez@email.com', amount: 14300.00, term: 12, purpose: 'Compra de mobiliario', status: 'under_review', priority: 'medium', createdAt: '2026-04-13', creditScore: 750, monthlyIncome: 42000 },
-  { id: 'REQ-007', clientName: 'Pedro Sánchez Vega', clientPhone: '809-555-7890', amount: 9200.50, term: 15, purpose: 'Préstamo Express', status: 'pending', priority: 'high', createdAt: '2026-04-17', creditScore: 0, monthlyIncome: 31000 },
-  { id: 'REQ-008', clientName: 'Sofía Ramírez Castro', clientPhone: '829-555-8901', clientEmail: 'sofia.ramirez@email.com', amount: 31200.00, term: 20, purpose: 'Inversión en negocio', status: 'approved', priority: 'high', createdAt: '2026-04-01', reviewedBy: 'Ana Martínez', reviewedAt: '2026-04-03', creditScore: 700, monthlyIncome: 58000 },
-  { id: 'REQ-009', clientName: 'Diego Morales Ruiz', clientPhone: '809-555-9012', amount: 6850.00, term: 3, purpose: 'Gastos escolares', status: 'pending', priority: 'low', createdAt: '2026-04-18', creditScore: 650, monthlyIncome: 38000 },
-  { id: 'REQ-010', clientName: 'Carmen Vega Torres', clientPhone: '829-555-0123', clientEmail: 'carmen.vega@email.com', amount: 9800.00, term: 4, purpose: 'Viaje familiar', status: 'under_review', priority: 'medium', createdAt: '2026-04-11', creditScore: 730, monthlyIncome: 48000 },
-];
 
 const AVATAR_PALETTES: [string, string][] = [
   ['#7c3aed', '#4f46e5'], ['#8b5cf6', '#06b6d4'], ['#f87171', '#f59e0b'],
@@ -134,6 +114,10 @@ const STATUS_CONFIG: Record<LoanRequest['status'], { label: string; bg: string; 
   approved:     { label: 'Aprobado',    bg: C.successBg,  color: C.successMid,  border: C.successBorder,  icon: 'checkmark-circle',     dot: '#10b981' },
   rejected:     { label: 'Rechazado',   bg: C.dangerBg,   color: C.dangerMid,   border: C.dangerBorder,   icon: 'close-circle',         dot: '#ef4444' },
   under_review: { label: 'En revisión', bg: C.reviewBg,   color: C.reviewMid,   border: C.reviewBorder,   icon: 'hourglass',            dot: '#0ea5e9' },
+  active:       { label: 'Activo',      bg: C.successBg,  color: C.successMid,  border: C.successBorder,  icon: 'checkmark-circle',     dot: '#10b981' },
+  paid:         { label: 'Pagado',      bg: C.successBg,  color: C.successMid,  border: C.successBorder,  icon: 'checkmark-done',       dot: '#10b981' },
+  overdue:      { label: 'Vencido',     bg: C.dangerBg,   color: C.dangerMid,   border: C.dangerBorder,   icon: 'alert-circle',         dot: '#ef4444' },
+  cancelled:    { label: 'Cancelado',   bg: C.border,     color: C.textMuted,   border: C.border,         icon: 'close-circle',         dot: '#94a3b8' },
 };
 
 const PRIORITY_CONFIG: Record<LoanRequest['priority'], { label: string; color: string; bg: string }> = {
@@ -151,7 +135,7 @@ const getCreditColor = (score: number) => {
 
 // ─── Avatar ───────────────────────────────────────────────────────
 const Avatar: React.FC<{ name: string; index: number; size?: number }> = ({ name, index, size = 46 }) => {
-  const initials = name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  const initials = name?.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() || '?';
   const [c1, c2] = AVATAR_PALETTES[index % AVATAR_PALETTES.length];
   const radius = size * 0.3;
   return (
@@ -187,7 +171,7 @@ const creditBarS = StyleSheet.create({
 
 // ─── Status Badge ────────────────────────────────────────────────
 const StatusBadge: React.FC<{ status: LoanRequest['status']; compact?: boolean }> = ({ status, compact }) => {
-  const cfg = STATUS_CONFIG[status];
+  const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
   return (
     <View style={[badgeS.pill, { backgroundColor: cfg.bg, borderColor: cfg.border }]}>
       <View style={[badgeS.dot, { backgroundColor: cfg.dot }]} />
@@ -292,7 +276,7 @@ const RequestCard: React.FC<{
   const isPending = request.status === 'pending';
   const isReview = request.status === 'under_review';
   const showActions = isPending || isReview;
-  const dateStr = new Date(request.createdAt).toLocaleDateString(configService.get('locale'), { day: '2-digit', month: 'short' });
+  const dateStr = request.createdAt ? new Date(request.createdAt).toLocaleDateString(configService.get('locale'), { day: '2-digit', month: 'short' }) : 'Fecha desconocida';
 
   return (
     <Animated.View entering={FadeInDown.delay(80 + index * 45).springify()} layout={Layout.springify()}>
@@ -332,7 +316,7 @@ const RequestCard: React.FC<{
           </View>
           <View style={cardS.purposeChip}>
             <Ionicons name="briefcase-outline" size={12} color={C.brandLight} />
-            <Text style={cardS.purposeText} numberOfLines={1}>{request.purpose}</Text>
+            <Text style={cardS.purposeText} numberOfLines={1}>{request.purpose || 'Sin propósito'}</Text>
           </View>
         </View>
 
@@ -537,6 +521,38 @@ const skelS = StyleSheet.create({
   lines: { flex: 1 },
 });
 
+// ─── Función para convertir Loan a LoanRequest ────────────────────
+const convertLoanToRequest = (loan: any, client?: any): LoanRequest => {
+  // Determinar prioridad basada en monto y otros factores
+  let priority: 'high' | 'medium' | 'low' = 'medium';
+  if (loan.amount >= 50000) priority = 'high';
+  else if (loan.amount <= 10000) priority = 'low';
+  
+  // Mapear estado
+  let mappedStatus: LoanRequest['status'] = 'pending';
+  if (loan.status === 'active') mappedStatus = 'approved';
+  else if (loan.status === 'paid') mappedStatus = 'approved';
+  else if (loan.status === 'overdue') mappedStatus = 'under_review';
+  else if (loan.status === 'cancelled') mappedStatus = 'rejected';
+  else if (loan.status === 'pending') mappedStatus = 'pending';
+  
+  return {
+    id: loan.id,
+    clientName: loan.borrowerName || client?.firstName + ' ' + client?.lastName || 'Cliente',
+    clientPhone: client?.phone || '',
+    clientEmail: client?.email,
+    amount: loan.amount,
+    term: loan.term,
+    purpose: loan.notes || 'Solicitud de préstamo',
+    status: mappedStatus,
+    priority,
+    createdAt: loan.createdAt || new Date().toISOString(),
+    creditScore: client?.creditScore,
+    monthlyIncome: client?.monthlyIncome,
+    clientId: loan.clientId,
+  };
+};
+
 // ─── Main Screen ──────────────────────────────────────────────────
 export const LoanRequestsScreen: React.FC<LoanRequestsScreenProps> = ({ navigation }) => {
   const [requests, setRequests] = useState<LoanRequest[]>([]);
@@ -550,42 +566,120 @@ export const LoanRequestsScreen: React.FC<LoanRequestsScreenProps> = ({ navigati
   const scrollY = useRef(new RNAnimated.Value(0)).current;
   const searchAnim = useRef(new RNAnimated.Value(0)).current;
 
-  useEffect(() => { navigation.setOptions({ headerShown: false }); loadRequests(); }, []);
+  // Usar los hooks reales
+  const { loans, loading: loansLoading, loadLoans, updateLoan } = useLoans();
+  const { clients, loadClients, getClient } = useClients();
 
+  // Inicializar base de datos y cargar datos
   useEffect(() => {
-    RNAnimated.timing(searchAnim, { toValue: searchFocused ? 1 : 0, duration: 200, useNativeDriver: false }).start();
-  }, [searchFocused]);
+    const init = async () => {
+      try {
+        await initDatabase();
+        await loadClients();
+        await loadLoans();
+      } catch (error) {
+        console.error('Error inicializando:', error);
+      }
+    };
+    init();
+    navigation.setOptions({ headerShown: false });
+  }, []);
 
-  const loadRequests = async () => {
-    try {
-      await new Promise(r => setTimeout(r, 1000));
-      setRequests(MOCK_REQUESTS);
-    } catch { Alert.alert('Error', 'No se pudieron cargar las solicitudes'); }
-    finally { setLoading(false); setRefreshing(false); }
+  // Convertir préstamos reales a solicitudes
+  useEffect(() => {
+    const loadRequestsFromLoans = async () => {
+      if (loans && loans.length > 0) {
+        const requestsList: LoanRequest[] = [];
+        
+        for (const loan of loans) {
+          try {
+            const client = await getClient(loan.clientId);
+            requestsList.push(convertLoanToRequest(loan, client));
+          } catch (error) {
+            console.error('Error obteniendo cliente:', error);
+            requestsList.push(convertLoanToRequest(loan));
+          }
+        }
+        
+        setRequests(requestsList);
+      }
+      setLoading(false);
+      setRefreshing(false);
+    };
+    
+    if (!loansLoading) {
+      loadRequestsFromLoans();
+    }
+  }, [loans, loansLoading, getClient]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await Promise.all([loadClients(), loadLoans()]);
+    setRefreshing(false);
   };
 
-  const handleRefresh = () => { setRefreshing(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); loadRequests(); };
-  const handleAdd = () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); (navigation as any).navigate('LoanRequestForm'); };
+  const handleAdd = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    (navigation as any).navigate('LoanRequestForm');
+  };
 
-  const handleApprove = (req: LoanRequest) => {
+  const handleApprove = async (req: LoanRequest) => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert('Aprobar solicitud', `¿Confirmas la aprobación del préstamo de ${req.clientName}?\n\nMonto: ${fmt(req.amount)}`, [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Aprobar', onPress: () => { setRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'approved' } : r)); } },
-    ]);
+    Alert.alert(
+      'Aprobar solicitud', 
+      `¿Confirmas la aprobación del préstamo de ${req.clientName}?\n\nMonto: ${fmt(req.amount)}`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { 
+          text: 'Aprobar', 
+          onPress: async () => {
+            try {
+              await updateLoan(req.id, { status: 'active' });
+              await loadLoans();
+              Alert.alert('Éxito', 'Préstamo aprobado correctamente');
+            } catch (error) {
+              Alert.alert('Error', 'No se pudo aprobar el préstamo');
+            }
+          } 
+        },
+      ]
+    );
   };
 
   const handleReject = (req: LoanRequest) => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    Alert.alert('Rechazar solicitud', `¿Seguro que quieres rechazar la solicitud de ${req.clientName}?`, [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Rechazar', style: 'destructive', onPress: () => setRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'rejected' } : r)) },
-    ]);
+    Alert.alert(
+      'Rechazar solicitud', 
+      `¿Seguro que quieres rechazar la solicitud de ${req.clientName}?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { 
+          text: 'Rechazar', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await updateLoan(req.id, { status: 'cancelled' });
+              await loadLoans();
+              Alert.alert('Éxito', 'Préstamo rechazado');
+            } catch (error) {
+              Alert.alert('Error', 'No se pudo rechazar el préstamo');
+            }
+          }
+        },
+      ]
+    );
   };
 
-  const handleReview = (req: LoanRequest) => {
+  const handleReview = async (req: LoanRequest) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'under_review' } : r));
+    try {
+      await updateLoan(req.id, { status: 'pending' });
+      await loadLoans();
+      Alert.alert('En revisión', 'La solicitud ha sido marcada para revisión');
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo actualizar el estado');
+    }
   };
 
   const filteredAndSorted = useMemo(() => {
@@ -593,7 +687,12 @@ export const LoanRequestsScreen: React.FC<LoanRequestsScreenProps> = ({ navigati
     if (activeFilter !== 'all') list = list.filter(r => r.status === activeFilter);
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      list = list.filter(r => r.clientName.toLowerCase().includes(q) || r.id.toLowerCase().includes(q) || r.clientPhone.includes(q) || r.purpose.toLowerCase().includes(q));
+      list = list.filter(r => 
+        r.clientName?.toLowerCase().includes(q) || 
+        r.id.toLowerCase().includes(q) || 
+        r.clientPhone?.includes(q) || 
+        r.purpose?.toLowerCase().includes(q)
+      );
     }
     const order = { high: 0, medium: 1, low: 2 };
     switch (sortType) {
@@ -609,14 +708,35 @@ export const LoanRequestsScreen: React.FC<LoanRequestsScreenProps> = ({ navigati
     total: requests.length,
     pending: requests.filter(r => r.status === 'pending').length,
     underReview: requests.filter(r => r.status === 'under_review').length,
-    approved: requests.filter(r => r.status === 'approved').length,
-    rejected: requests.filter(r => r.status === 'rejected').length,
+    approved: requests.filter(r => r.status === 'approved' || r.status === 'active').length,
+    rejected: requests.filter(r => r.status === 'rejected' || r.status === 'cancelled').length,
     totalAmount: requests.reduce((s, r) => s + r.amount, 0),
     highPriority: requests.filter(r => r.priority === 'high' && (r.status === 'pending' || r.status === 'under_review')).length,
   }), [requests]);
 
   const navOpacity = scrollY.interpolate({ inputRange: [0, 70], outputRange: [0, 1], extrapolate: 'clamp' });
   const searchBorder = searchAnim.interpolate({ inputRange: [0, 1], outputRange: [C.border, C.brandVibrant] as any });
+
+  useEffect(() => {
+    RNAnimated.timing(searchAnim, { toValue: searchFocused ? 1 : 0, duration: 200, useNativeDriver: false }).start();
+  }, [searchFocused]);
+
+  if (loading && requests.length === 0) {
+    return (
+      <View style={{ flex: 1, backgroundColor: C.bg }}>
+        <LinearGradient colors={[C.brand, C.brandMid, C.brandVibrant]} style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 280 }} />
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: 100 }}>
+          <Animated.View entering={ZoomIn.duration(350)} style={{ alignItems: 'center' }}>
+            <View style={{ width: 76, height: 76, borderRadius: 22, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
+              <Ionicons name="document-text" size={36} color={C.brandVibrant} />
+            </View>
+            <Text style={{ fontSize: 17, fontWeight: '700', color: C.text, marginBottom: 16 }}>Cargando solicitudes…</Text>
+            <ActivityIndicator size="large" color={C.brandVibrant} />
+          </Animated.View>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={s.root}>
@@ -644,7 +764,6 @@ export const LoanRequestsScreen: React.FC<LoanRequestsScreenProps> = ({ navigati
       >
         {/* Header */}
         <LinearGradient colors={[C.brand, C.brandMid, C.brandVibrant]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.header}>
-          {/* Decorative circles */}
           <View style={s.decCircle1} />
           <View style={s.decCircle2} />
 
@@ -683,7 +802,6 @@ export const LoanRequestsScreen: React.FC<LoanRequestsScreenProps> = ({ navigati
             </View>
           </Animated.View>
 
-          {/* Total amount banner */}
           <Animated.View entering={FadeInDown.delay(160).springify()} style={s.amountBanner}>
             <Ionicons name="cash-outline" size={16} color="rgba(255,255,255,0.7)" />
             <Text style={s.amountBannerLabel}>Monto total en cartera: </Text>
@@ -756,15 +874,18 @@ export const LoanRequestsScreen: React.FC<LoanRequestsScreenProps> = ({ navigati
           </Animated.View>
 
           {/* List */}
-          {loading ? (
-            [0, 1, 2].map(i => <SkeletonCard key={i} delay={i * 120} />)
-          ) : filteredAndSorted.length > 0 ? (
+          {filteredAndSorted.length > 0 ? (
             filteredAndSorted.map((req, i) => (
               <RequestCard
                 key={req.id}
                 request={req}
                 index={i}
-                onPress={() => Alert.alert(req.id, `Ver detalles de ${req.clientName}`)}
+                onPress={() => {
+                  Alert.alert(
+                    req.id,
+                    `Cliente: ${req.clientName}\nMonto: ${fmt(req.amount)}\nPlazo: ${req.term} meses\nPropósito: ${req.purpose || 'No especificado'}`
+                  );
+                }}
                 onApprove={() => handleApprove(req)}
                 onReject={() => handleReject(req)}
                 onReview={() => handleReview(req)}
@@ -796,13 +917,11 @@ export const LoanRequestsScreen: React.FC<LoanRequestsScreenProps> = ({ navigati
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
 
-  // Float nav
   floatNav: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 99, height: 96, paddingTop: 48, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.06)', overflow: 'hidden' },
   floatRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
   floatTitle: { fontSize: 15, fontWeight: '800', color: C.text, flex: 1, textAlign: 'center' },
   navBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center' },
 
-  // Header
   header: { paddingTop: 56, paddingBottom: 20, paddingHorizontal: 20, overflow: 'hidden' },
   decCircle1: { position: 'absolute', width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.05)', top: -60, right: -40 },
   decCircle2: { position: 'absolute', width: 130, height: 130, borderRadius: 65, backgroundColor: 'rgba(255,255,255,0.04)', bottom: 10, left: -30 },
@@ -819,30 +938,27 @@ const s = StyleSheet.create({
   amountBannerLabel: { fontSize: 12, color: 'rgba(255,255,255,0.65)', fontWeight: '600' },
   amountBannerVal: { fontSize: 14, color: '#fff', fontWeight: '800' },
 
-  // Body
   body: { padding: 16 },
 
-  // Search
   searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.surface, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 3, marginBottom: 14, borderWidth: 1.5, gap: 10,
     shadowColor: C.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2,
   },
   searchInput: { flex: 1, fontSize: 14, paddingVertical: 11, color: C.text, fontWeight: '500' },
 
-  // Filters
   filterRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
   sortBtn: { width: 42, height: 42, borderRadius: 12, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
 
-  // Pills
   pillRow: { flexDirection: 'row', marginBottom: 14 },
 
-  // Results
   resultsBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   resultsCount: { fontSize: 13, color: C.textSec, fontWeight: '600' },
   clearBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: C.brandFaint, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
   clearText: { fontSize: 12, color: C.brandVibrant, fontWeight: '700' },
 
-  // FAB
   fab: { position: 'absolute', bottom: 28, right: 20, zIndex: 100, shadowColor: C.brandVibrant, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 8 },
   fabInner: { width: 58, height: 58, borderRadius: 29, overflow: 'hidden' },
   fabGrad: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
 });
+
+// Añadir import faltante
+import { ActivityIndicator } from 'react-native';

@@ -23,9 +23,10 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthService } from '../../services/authService';
-import { DatabaseService } from '../../services/databaseService';
+import { settingsService } from '../../services/settingsService';
 import { configService } from '../../services/configService';
 import { MainTabParamList, RootStackParamList } from '../../navigation/types';
+import { useAuth } from '../../hooks/useAuth';
 
 // ─── Design System (idéntico al resto de la app) ──────────────────────────────
 const DS = {
@@ -95,7 +96,7 @@ const PENALTY_TYPE  = ['Porcentaje diario', 'Monto fijo', 'Sin mora'];
 
 type Section = 'perfil' | 'empresa' | 'prestamos' | 'recibos' | 'seguridad' | null;
 
-// ─── Reusable UI pieces ───────────────────────────────────────────────────────
+// ─── Reusable UI pieces (sin cambios) ─────────────────────────────────────────
 const SectionHeader = ({ icon, label, color = DS.colors.grad2 }: { icon: string; label: string; color?: string }) => (
   <View style={st.sectionHeader}>
     <View style={[st.sectionIconWrap, { backgroundColor: color + '18' }]}>
@@ -185,7 +186,7 @@ const ChipSelect = ({
   </View>
 );
 
-// ─── Edit Modal ───────────────────────────────────────────────────────────────
+// ─── Edit Modal (sin cambios) ─────────────────────────────────────────────────
 const EditModal = ({
   visible, title, value, onSave, onClose, keyboardType = 'default', multiline = false,
 }: {
@@ -224,7 +225,7 @@ const EditModal = ({
   );
 };
 
-// ─── Currency Picker Modal ────────────────────────────────────────────────────
+// ─── Currency Picker Modal (sin cambios) ─────────────────────────────────────
 const CurrencyModal = ({
   visible, selected, onSelect, onClose,
 }: { visible: boolean; selected: string; onSelect: (c: typeof CURRENCIES[0]) => void; onClose: () => void }) => (
@@ -264,7 +265,7 @@ const CurrencyModal = ({
   </Modal>
 );
 
-// ─── Collapsible Section ──────────────────────────────────────────────────────
+// ─── Collapsible Section (sin cambios) ───────────────────────────────────────
 const CollapseSection = ({
   id, current, title, icon, color, children, onToggle,
 }: {
@@ -304,11 +305,15 @@ const CollapseSection = ({
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const [openSection, setOpenSection] = useState<Section>('perfil');
+  const [loading, setLoading] = useState(true);
+
+  // Obtener usuario del hook de autenticación
+  const { user, updateUser } = useAuth();
 
   // ── Perfil ──────────────────────────────────────────────────────────────────
-  const [userName,  setUserName]  = useState('Usuario Administrador');
-  const [userEmail, setUserEmail] = useState('admin@dompresta.com');
-  const [userPhone, setUserPhone] = useState('+1 809 555 1234');
+  const [userName,  setUserName]  = useState('');
+  const [userEmail, setUserEmail] = useState('');
+  const [userPhone, setUserPhone] = useState('');
 
   // ── Empresa ─────────────────────────────────────────────────────────────────
   const [companyName,    setCompanyName]    = useState('DomPresta S.R.L.');
@@ -366,51 +371,87 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     setEditModal({ visible: true, title, value, onSave, kb, multi });
   };
 
-  const loadSettingsFromDb = () => {
-    const settingOrDefault = (key: string, fallback: string) => DatabaseService.getSetting(key) ?? fallback;
-    setUserPhone(DatabaseService.getSetting('profile_phone') ?? userPhone);
+  // Helper para obtener setting con valor por defecto
+  const getSettingOrDefault = async (key: string, defaultValue: string): Promise<string> => {
+    const value = await settingsService.get(key);
+    return value ?? defaultValue;
+  };
 
-    setCompanyName(settingOrDefault('companyName', companyName));
-    setCompanyRNC(settingOrDefault('companyRNC', companyRNC));
-    setCompanyPhone(settingOrDefault('companyPhone', companyPhone));
-    setCompanyAddress(settingOrDefault('companyAddress', companyAddress));
-    setCompanyEmail(settingOrDefault('companyEmail', companyEmail));
-    setCompanySlogan(settingOrDefault('companySlogan', companySlogan));
+  const getSettingNumberOrDefault = async (key: string, defaultValue: number): Promise<number> => {
+    const value = await settingsService.get(key);
+    return value ? parseFloat(value) : defaultValue;
+  };
 
-    const savedCurrencyCode = DatabaseService.getSetting('currencyCode');
-    const savedCurrencySymbol = DatabaseService.getSetting('currency');
-    const matchedCurrency = CURRENCIES.find((item) => item.code === savedCurrencyCode)
-      || CURRENCIES.find((item) => item.symbol === savedCurrencySymbol)
-      || CURRENCIES[0];
-    setCurrency(matchedCurrency);
+  const getSettingBooleanOrDefault = async (key: string, defaultValue: boolean): Promise<boolean> => {
+    const value = await settingsService.get(key);
+    return value ? value === '1' : defaultValue;
+  };
 
-    setDecimalSep(DatabaseService.getSetting('decimalSep') ?? decimalSep);
-    setThousandSep(DatabaseService.getSetting('thousandSep') ?? thousandSep);
-    setSymbolPosition((DatabaseService.getSetting('symbolPosition') as 'izq' | 'der') ?? symbolPosition);
-    setDateFormat(DatabaseService.getSetting('dateFormat') ?? dateFormat);
+  // Cargar todas las configuraciones desde settingsService
+  const loadSettings = async () => {
+    try {
+      setLoading(true);
 
-    setDefaultAmount(Number(DatabaseService.getSetting('defaultAmount') ?? defaultAmount));
-    setDefaultTerm(Number(DatabaseService.getSetting('defaultTerm') ?? defaultTerm));
-    setDefaultRate(Number(DatabaseService.getSetting('defaultRate') ?? defaultRate));
-    setMinAmount(Number(DatabaseService.getSetting('minAmount') ?? minAmount));
-    setMaxAmount(Number(DatabaseService.getSetting('maxAmount') ?? maxAmount));
-    setPayFreq(DatabaseService.getSetting('payFreq') ?? payFreq);
-    setInterestType(DatabaseService.getSetting('interestType') ?? interestType);
-    setPenaltyType(DatabaseService.getSetting('penaltyType') ?? penaltyType);
-    setPenaltyRate(Number(DatabaseService.getSetting('penaltyRate') ?? penaltyRate));
-    setGraceDays(Number(DatabaseService.getSetting('graceDays') ?? graceDays));
-    setAutoCalcInterest((DatabaseService.getSetting('autoCalcInterest') ?? (autoCalcInterest ? '1' : '0')) === '1');
-    setAllowPartial((DatabaseService.getSetting('allowPartial') ?? (allowPartial ? '1' : '0')) === '1');
-    setRequireGuarantor((DatabaseService.getSetting('requireGuarantor') ?? (requireGuarantor ? '1' : '0')) === '1');
+      // Perfil
+      if (user) {
+        setUserName(user.name || 'Usuario Administrador');
+        setUserEmail(user.email || 'admin@dompresta.com');
+        const phone = await getSettingOrDefault('profile_phone', '+1 809 555 1234');
+        setUserPhone(phone);
+      }
 
-    setTicketFooter(DatabaseService.getSetting('ticketFooter') ?? ticketFooter);
-    setShowLogo((DatabaseService.getSetting('showLogo') ?? (showLogo ? '1' : '0')) === '1');
-    setShowRNC((DatabaseService.getSetting('showRNC') ?? (showRNC ? '1' : '0')) === '1');
-    setShowBalance((DatabaseService.getSetting('showBalance') ?? (showBalance ? '1' : '0')) === '1');
-    setShowSignature((DatabaseService.getSetting('showSignature') ?? (showSignature ? '1' : '0')) === '1');
-    setCopies(Number(DatabaseService.getSetting('copies') ?? copies));
-    setPaperSize(DatabaseService.getSetting('paperSize') ?? paperSize);
-    setAutoPrint((DatabaseService.getSetting('autoPrint') ?? (autoPrint ? '1' : '0')) === '1');
+      // Empresa
+      setCompanyName(await getSettingOrDefault('companyName', 'DomPresta S.R.L.'));
+      setCompanyRNC(await getSettingOrDefault('companyRNC', '1-31-12345-6'));
+      setCompanyPhone(await getSettingOrDefault('companyPhone', '+1 809 555 9000'));
+      setCompanyAddress(await getSettingOrDefault('companyAddress', 'Av. 27 de Febrero #123, Santo Domingo'));
+      setCompanyEmail(await getSettingOrDefault('companyEmail', 'info@dompresta.com'));
+      setCompanySlogan(await getSettingOrDefault('companySlogan', 'Tu préstamo, tu futuro.'));
+
+      // Moneda
+      const savedCurrencyCode = await getSettingOrDefault('currencyCode', 'DOP');
+      const savedCurrencySymbol = await getSettingOrDefault('currency', 'RD$');
+      const matchedCurrency = CURRENCIES.find((item) => item.code === savedCurrencyCode)
+        || CURRENCIES.find((item) => item.symbol === savedCurrencySymbol)
+        || CURRENCIES[0];
+      setCurrency(matchedCurrency);
+
+      setDecimalSep(await getSettingOrDefault('decimalSep', '.'));
+      setThousandSep(await getSettingOrDefault('thousandSep', ','));
+      const pos = await getSettingOrDefault('symbolPosition', 'izq');
+      setSymbolPosition(pos as 'izq' | 'der');
+      setDateFormat(await getSettingOrDefault('dateFormat', 'DD/MM/YYYY'));
+
+      // Préstamos
+      setDefaultAmount(await getSettingNumberOrDefault('defaultAmount', 5000));
+      setDefaultTerm(await getSettingNumberOrDefault('defaultTerm', 12));
+      setDefaultRate(await getSettingNumberOrDefault('defaultRate', 5));
+      setMinAmount(await getSettingNumberOrDefault('minAmount', 1000));
+      setMaxAmount(await getSettingNumberOrDefault('maxAmount', 500000));
+      setPayFreq(await getSettingOrDefault('payFreq', 'Semanal'));
+      setInterestType(await getSettingOrDefault('interestType', 'Decreciente'));
+      setPenaltyType(await getSettingOrDefault('penaltyType', 'Porcentaje diario'));
+      setPenaltyRate(await getSettingNumberOrDefault('penaltyRate', 2));
+      setGraceDays(await getSettingNumberOrDefault('graceDays', 3));
+      setAutoCalcInterest(await getSettingBooleanOrDefault('autoCalcInterest', true));
+      setAllowPartial(await getSettingBooleanOrDefault('allowPartial', true));
+      setRequireGuarantor(await getSettingBooleanOrDefault('requireGuarantor', false));
+
+      // Recibos
+      setTicketFooter(await getSettingOrDefault('ticketFooter', 'Gracias por su preferencia. DomPresta.'));
+      setShowLogo(await getSettingBooleanOrDefault('showLogo', true));
+      setShowRNC(await getSettingBooleanOrDefault('showRNC', true));
+      setShowBalance(await getSettingBooleanOrDefault('showBalance', true));
+      setShowSignature(await getSettingBooleanOrDefault('showSignature', true));
+      setCopies(await getSettingNumberOrDefault('copies', 2));
+      setPaperSize(await getSettingOrDefault('paperSize', '58mm'));
+      setAutoPrint(await getSettingBooleanOrDefault('autoPrint', false));
+
+    } catch (error) {
+      console.error('Error cargando configuraciones:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -424,16 +465,72 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       ),
     });
 
-    const initialize = async () => {
-      const currentUser = await AuthService.getCurrentUser();
-      if (currentUser) {
-        setUserName(currentUser.name || userName);
-        setUserEmail(currentUser.email || userEmail);
-      }
-      loadSettingsFromDb();
-    };
-    initialize();
+    loadSettings();
   }, [navigation]);
+
+  // Guardar todas las configuraciones en settingsService
+  const handleSaveAll = async () => {
+    try {
+      // Actualizar usuario si está disponible
+      if (user) {
+        await updateUser({ name: userName, email: userEmail });
+      }
+
+      // Perfil
+      await settingsService.set('profile_phone', userPhone, 'Teléfono del perfil');
+
+      // Empresa
+      await settingsService.set('companyName', companyName, 'Nombre de la empresa');
+      await settingsService.set('companyRNC', companyRNC, 'RNC / RUC');
+      await settingsService.set('companyPhone', companyPhone, 'Teléfono de la empresa');
+      await settingsService.set('companyAddress', companyAddress, 'Dirección');
+      await settingsService.set('companyEmail', companyEmail, 'Email');
+      await settingsService.set('companySlogan', companySlogan, 'Slogan');
+
+      // Moneda
+      await settingsService.set('currency', currency.symbol, 'Símbolo de moneda');
+      await settingsService.set('currencyCode', currency.code, 'Código de moneda');
+      await settingsService.set('decimalSep', decimalSep, 'Separador decimal');
+      await settingsService.set('thousandSep', thousandSep, 'Separador de miles');
+      await settingsService.set('symbolPosition', symbolPosition, 'Posición del símbolo');
+      await settingsService.set('dateFormat', dateFormat, 'Formato de fecha');
+
+      // Préstamos
+      await settingsService.set('defaultAmount', defaultAmount.toString(), 'Monto por defecto');
+      await settingsService.set('defaultTerm', defaultTerm.toString(), 'Plazo por defecto');
+      await settingsService.set('defaultRate', defaultRate.toString(), 'Tasa por defecto');
+      await settingsService.set('minAmount', minAmount.toString(), 'Monto mínimo');
+      await settingsService.set('maxAmount', maxAmount.toString(), 'Monto máximo');
+      await settingsService.set('payFreq', payFreq, 'Frecuencia de pago');
+      await settingsService.set('interestType', interestType, 'Tipo de interés');
+      await settingsService.set('penaltyType', penaltyType, 'Tipo de mora');
+      await settingsService.set('penaltyRate', penaltyRate.toString(), 'Tasa de mora');
+      await settingsService.set('graceDays', graceDays.toString(), 'Días de gracia');
+      await settingsService.set('autoCalcInterest', autoCalcInterest ? '1' : '0', 'Calcular interés automático');
+      await settingsService.set('allowPartial', allowPartial ? '1' : '0', 'Permitir pagos parciales');
+      await settingsService.set('requireGuarantor', requireGuarantor ? '1' : '0', 'Requiere fiador');
+
+      // Recibos
+      await settingsService.set('ticketFooter', ticketFooter, 'Pie de recibo');
+      await settingsService.set('showLogo', showLogo ? '1' : '0', 'Mostrar logo');
+      await settingsService.set('showRNC', showRNC ? '1' : '0', 'Mostrar RNC');
+      await settingsService.set('showBalance', showBalance ? '1' : '0', 'Mostrar saldo');
+      await settingsService.set('showSignature', showSignature ? '1' : '0', 'Mostrar firma');
+      await settingsService.set('copies', copies.toString(), 'Número de copias');
+      await settingsService.set('paperSize', paperSize, 'Tamaño de papel');
+      await settingsService.set('autoPrint', autoPrint ? '1' : '0', 'Imprimir automático');
+
+      // Recargar configService para aplicar cambios inmediatos
+      await configService.refresh();
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('✓ Configuración guardada', 'Todos los cambios fueron guardados correctamente.');
+    } catch (error) {
+      console.error('Error guardando configuración:', error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Error', 'No se pudo guardar la configuración.');
+    }
+  };
 
   const handleLogout = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -442,67 +539,30 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       {
         text: 'Cerrar Sesión', style: 'destructive',
         onPress: async () => {
-          try { await AuthService.logout(); navigation.replace('Login'); }
+          try { 
+            await AuthService.logout(); 
+            navigation.replace('Login');
+          }
           catch (e) { console.error(e); }
         },
       },
     ]);
   };
 
-  const handleSaveAll = async () => {
-    try {
-      const currentUser = await AuthService.getCurrentUser();
-      if (currentUser) {
-        DatabaseService.updateUser(currentUser.id, { name: userName, email: userEmail });
-      }
-      DatabaseService.setSetting('profile_phone', userPhone);
-
-      DatabaseService.setSetting('companyName', companyName);
-      DatabaseService.setSetting('companyRNC', companyRNC);
-      DatabaseService.setSetting('companyPhone', companyPhone);
-      DatabaseService.setSetting('companyAddress', companyAddress);
-      DatabaseService.setSetting('companyEmail', companyEmail);
-      DatabaseService.setSetting('companySlogan', companySlogan);
-
-      DatabaseService.setSetting('currency', currency.symbol);
-      DatabaseService.setSetting('currencyCode', currency.code);
-      DatabaseService.setSetting('decimalSep', decimalSep);
-      DatabaseService.setSetting('thousandSep', thousandSep);
-      DatabaseService.setSetting('symbolPosition', symbolPosition);
-      DatabaseService.setSetting('dateFormat', dateFormat);
-
-      DatabaseService.setSetting('defaultAmount', defaultAmount.toString());
-      DatabaseService.setSetting('defaultTerm', defaultTerm.toString());
-      DatabaseService.setSetting('defaultRate', defaultRate.toString());
-      DatabaseService.setSetting('minAmount', minAmount.toString());
-      DatabaseService.setSetting('maxAmount', maxAmount.toString());
-      DatabaseService.setSetting('payFreq', payFreq);
-      DatabaseService.setSetting('interestType', interestType);
-      DatabaseService.setSetting('penaltyType', penaltyType);
-      DatabaseService.setSetting('penaltyRate', penaltyRate.toString());
-      DatabaseService.setSetting('graceDays', graceDays.toString());
-      DatabaseService.setSetting('autoCalcInterest', autoCalcInterest ? '1' : '0');
-      DatabaseService.setSetting('allowPartial', allowPartial ? '1' : '0');
-      DatabaseService.setSetting('requireGuarantor', requireGuarantor ? '1' : '0');
-
-      DatabaseService.setSetting('ticketFooter', ticketFooter);
-      DatabaseService.setSetting('showLogo', showLogo ? '1' : '0');
-      DatabaseService.setSetting('showRNC', showRNC ? '1' : '0');
-      DatabaseService.setSetting('showBalance', showBalance ? '1' : '0');
-      DatabaseService.setSetting('showSignature', showSignature ? '1' : '0');
-      DatabaseService.setSetting('copies', copies.toString());
-      DatabaseService.setSetting('paperSize', paperSize);
-      DatabaseService.setSetting('autoPrint', autoPrint ? '1' : '0');
-      await configService.refresh();
-
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('✓ Configuración guardada', 'Todos los cambios fueron guardados correctamente.');
-    } catch (error) {
-      console.error('Error guardando perfil:', error);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Error', 'No se pudo guardar la configuración.');
-    }
-  };
+  // Mostrar loading mientras se cargan las configuraciones
+  if (loading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: DS.colors.surface }}>
+        <LinearGradient colors={GRAD_HEADER} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ height: 280 }} />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: -80 }}>
+          <View style={{ width: 60, height: 60, borderRadius: 20, backgroundColor: DS.colors.white, alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="settings" size={30} color={DS.colors.grad3} />
+          </View>
+          <Text style={{ marginTop: 20, fontSize: 16, fontWeight: '600', color: DS.colors.text }}>Cargando configuración...</Text>
+        </View>
+      </View>
+    );
+  }
 
   // ─── initials ──────────────────────────────────────────────────────────────
   const initials = userName.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
@@ -512,7 +572,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
       {/* ── Hero Header ───────────────────────────────────────────────────── */}
       <LinearGradient colors={GRAD_HEADER} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.hero}>
-        {/* Orbe decorativo */}
         <View style={st.heroOrb} />
 
         <View style={st.avatarWrap}>
@@ -751,7 +810,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   );
 };
 
-// ─── StyleSheet ───────────────────────────────────────────────────────────────
+// ─── StyleSheet (sin cambios, igual que antes) ─────────────────────────────────
 const st = StyleSheet.create({
   root: { flex: 1, backgroundColor: DS.colors.surface },
 
@@ -761,7 +820,6 @@ const st = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
 
-  // ── Hero ────────────────────────────────────────────────────────────────────
   hero: {
     paddingTop: 56, paddingBottom: DS.space.xxl,
     alignItems: 'center', overflow: 'hidden',
@@ -796,11 +854,9 @@ const st = StyleSheet.create({
   },
   badgeTxt: { fontSize: DS.font.xs, fontWeight: DS.weight.bold, color: DS.colors.white },
 
-  // ── Scroll ──────────────────────────────────────────────────────────────────
   scroll: { flex: 1 },
   scrollContent: { padding: DS.space.lg, gap: DS.space.md, paddingBottom: DS.space.xxl },
 
-  // ── Collapse card ────────────────────────────────────────────────────────────
   collapseCard: {
     backgroundColor: DS.colors.white,
     borderRadius: DS.radius.lg,
@@ -822,7 +878,6 @@ const st = StyleSheet.create({
     borderTopWidth: 1, borderTopColor: DS.colors.border,
   },
 
-  // ── Section sub-header ────────────────────────────────────────────────────────
   sectionHeader: {
     flexDirection: 'row', alignItems: 'center', gap: DS.space.sm,
     marginTop: DS.space.lg, marginBottom: DS.space.sm,
@@ -833,7 +888,6 @@ const st = StyleSheet.create({
   },
   sectionTitle: { fontSize: DS.font.sm, fontWeight: DS.weight.bold, color: DS.colors.textSub, letterSpacing: 0.3 },
 
-  // ── Field row ────────────────────────────────────────────────────────────────
   fieldRow: {
     flexDirection: 'row', alignItems: 'center',
     paddingVertical: DS.space.md,
@@ -845,7 +899,6 @@ const st = StyleSheet.create({
   fieldValueMono: { fontVariant: ['tabular-nums'] },
   fieldSuffix: { fontSize: DS.font.xs, color: DS.colors.textMuted },
 
-  // ── Toggle row ───────────────────────────────────────────────────────────────
   toggleRow: {
     flexDirection: 'row', alignItems: 'center',
     paddingVertical: DS.space.md,
@@ -853,7 +906,6 @@ const st = StyleSheet.create({
   },
   toggleDesc: { fontSize: DS.font.xs, color: DS.colors.textMuted, marginTop: DS.space.xs },
 
-  // ── Number control ───────────────────────────────────────────────────────────
   numberRow: {
     flexDirection: 'row', alignItems: 'center',
     paddingVertical: DS.space.md,
@@ -877,7 +929,6 @@ const st = StyleSheet.create({
   numberVal: { fontSize: DS.font.md, fontWeight: DS.weight.bold, color: DS.colors.text },
   numberSuffix: { fontSize: DS.font.xs, color: DS.colors.textMuted },
 
-  // ── Chip select ──────────────────────────────────────────────────────────────
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: DS.space.sm, marginVertical: DS.space.sm },
   chip: {
     paddingHorizontal: DS.space.md, paddingVertical: DS.space.sm,
@@ -890,7 +941,6 @@ const st = StyleSheet.create({
   chipTxt: { fontSize: DS.font.sm, fontWeight: DS.weight.bold, color: DS.colors.textMuted },
   chipTxtActive: { color: DS.colors.white },
 
-  // ── Currency selector ────────────────────────────────────────────────────────
   currencySelector: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: DS.colors.surface, borderRadius: DS.radius.md,
@@ -906,22 +956,18 @@ const st = StyleSheet.create({
   currCode: { fontSize: DS.font.md, fontWeight: DS.weight.black, color: DS.colors.text },
   currName: { fontSize: DS.font.xs, color: DS.colors.textMuted, marginTop: 2 },
 
-  // ── Row two columns ──────────────────────────────────────────────────────────
   rowTwo: { flexDirection: 'row', gap: DS.space.md, marginTop: DS.space.sm },
   halfField: { flex: 1 },
   halfLabel: { fontSize: DS.font.sm, fontWeight: DS.weight.medium, color: DS.colors.textSub, marginBottom: DS.space.xs },
 
-  // ── Label above chips ────────────────────────────────────────────────────────
   labelAbove: { marginTop: DS.space.lg },
 
-  // ── Inline button ────────────────────────────────────────────────────────────
   inlineBtn: {
     flexDirection: 'row', alignItems: 'center', gap: DS.space.sm,
     paddingVertical: DS.space.md, alignSelf: 'flex-start',
   },
   inlineBtnTxt: { fontSize: DS.font.sm, fontWeight: DS.weight.bold, color: DS.colors.grad3 },
 
-  // ── Text area button ─────────────────────────────────────────────────────────
   textAreaBtn: {
     flexDirection: 'row', alignItems: 'flex-start',
     backgroundColor: DS.colors.surface, borderRadius: DS.radius.md,
@@ -930,7 +976,6 @@ const st = StyleSheet.create({
   },
   textAreaValue: { flex: 1, fontSize: DS.font.sm, color: DS.colors.text, lineHeight: 20 },
 
-  // ── Save button ───────────────────────────────────────────────────────────────
   saveBtn: {
     borderRadius: DS.radius.md, overflow: 'hidden',
     shadowColor: DS.colors.grad1, shadowOffset: { width: 0, height: 8 },
@@ -942,23 +987,19 @@ const st = StyleSheet.create({
   },
   saveTxt: { fontSize: DS.font.md, fontWeight: DS.weight.black, color: DS.colors.white, letterSpacing: 0.3 },
 
-  // ── Action rows ───────────────────────────────────────────────────────────────
   actionRow: { flexDirection: 'row', alignItems: 'center', padding: DS.space.lg, gap: DS.space.md },
   actionIcon: { width: 36, height: 36, borderRadius: DS.radius.sm, alignItems: 'center', justifyContent: 'center' },
   actionTxt: { flex: 1, fontSize: DS.font.md, fontWeight: DS.weight.semibold, color: DS.colors.text },
   divider: { height: 1, backgroundColor: DS.colors.border, marginHorizontal: DS.space.lg },
 
-  // ── Separator ─────────────────────────────────────────────────────────────────
   separator: { height: 1, backgroundColor: DS.colors.border, marginVertical: DS.space.sm },
 
-  // ── Version footer ────────────────────────────────────────────────────────────
   versionTxt: {
     textAlign: 'center', fontSize: DS.font.xs,
     color: DS.colors.textMuted, fontWeight: DS.weight.medium,
     letterSpacing: 0.3, paddingVertical: DS.space.sm,
   },
 
-  // ── Edit Modal ────────────────────────────────────────────────────────────────
   modalOverlay: {
     flex: 1, backgroundColor: DS.colors.overlayDark,
     justifyContent: 'center', alignItems: 'center', padding: DS.space.xl,
@@ -988,7 +1029,6 @@ const st = StyleSheet.create({
   modalSaveGrad: { paddingVertical: 13, alignItems: 'center' },
   modalSaveTxt: { fontSize: DS.font.md, fontWeight: DS.weight.black, color: DS.colors.white },
 
-  // ── Currency Modal ────────────────────────────────────────────────────────────
   currencyItem: {
     flexDirection: 'row', alignItems: 'center', gap: DS.space.md,
     paddingHorizontal: DS.space.xl, paddingVertical: DS.space.md,
